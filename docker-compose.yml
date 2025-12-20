@@ -1,0 +1,32 @@
+services:
+  screenshot-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: firefox-screenshot-api
+    ports:
+      - "8000:8000"
+    environment:
+      # Uvicorn settings
+      - UVICORN_WORKERS=1
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+    # Restart policy
+    restart: unless-stopped
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health', timeout=5).raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

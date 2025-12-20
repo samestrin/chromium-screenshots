@@ -1,0 +1,168 @@
+"""Screenshot service using Playwright with Chromium."""
+
+import asyncio
+import time
+from contextlib import asynccontextmanager
+from typing import Optional
+
+from playwright.async_api import Browser, async_playwright
+
+from .models import ImageFormat, ScreenshotRequest, ScreenshotType
+
+# Common ad/tracking domains to block
+AD_DOMAINS = [
+    "doubleclick.net",
+    "googlesyndication.com",
+    "googleadservices.com",
+    "google-analytics.com",
+    "facebook.net",
+    "facebook.com/tr",
+    "analytics",
+    "adservice",
+    "ads.",
+    "tracking.",
+]
+
+
+class ScreenshotService:
+    """Service for capturing screenshots using Chromium via Playwright."""
+
+    def __init__(self):
+        self._playwright = None
+        self._browser: Optional[Browser] = None
+        self._lock = asyncio.Lock()
+
+    async def initialize(self) -> None:
+        """Initialize Playwright and launch Chromium browser."""
+        if self._browser is not None:
+            return
+
+        async with self._lock:
+            if self._browser is not None:
+                return
+
+            self._playwright = await async_playwright().start()
+            self._browser = await self._playwright.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--disable-extensions",
+                ],
+            )
+
+    async def shutdown(self) -> None:
+        """Clean up browser and Playwright resources."""
+        if self._browser:
+            await self._browser.close()
+            self._browser = None
+        if self._playwright:
+            await self._playwright.stop()
+            self._playwright = None
+
+    @asynccontextmanager
+    async def _get_page(self, request: ScreenshotRequest):
+        """Context manager for creating and cleaning up browser pages."""
+        if not self._browser:
+            await self.initialize()
+
+        context = await self._browser.new_context(
+            viewport={"width": request.width, "height": request.height},
+            color_scheme="dark" if request.dark_mode else "light",
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
+        )
+
+        # Block ads if requested
+        if request.block_ads:
+            await context.route(
+                "**/*",
+                lambda route: (
+                    route.abort()
+                    if any(domain in route.request.url for domain in AD_DOMAINS)
+                    else route.continue_()
+                ),
+            )
+
+        page = await context.new_page()
+        try:
+            yield page
+        finally:
+            await context.close()
+
+    async def capture(self, request: ScreenshotRequest) -> tuple[bytes, float]:
+        """
+        Capture a screenshot based on the request parameters.
+
+        Args:
+            request: Screenshot request with URL and options
+
+        Returns:
+            Tuple of (screenshot bytes, capture time in ms)
+
+        Raises:
+            Exception: If screenshot capture fails
+        """
+        start_time = time.perf_counter()
+
+        async with self._get_page(request) as page:
+            # Navigate to URL
+            await page.goto(
+                str(request.url),
+                wait_until="networkidle",
+                timeout=30000,
+            )
+
+            # Wait for additional timeout if specified
+            if request.wait_for_timeout > 0:
+                await page.wait_for_timeout(request.wait_for_timeout)
+
+            # Wait for specific selector if provided
+            if request.wait_for_selector:
+                await page.wait_for_selector(
+                    request.wait_for_selector,
+                    timeout=10000,
+                )
+
+            # Apply delay before capture if specified
+            if request.delay > 0:
+                await asyncio.sleep(request.delay / 1000)
+
+            # Prepare screenshot options
+            screenshot_options = {
+                "type": request.format.value,
+                "full_page": request.screenshot_type == ScreenshotType.FULL_PAGE,
+            }
+
+            # Quality only applies to JPEG
+            if request.format == ImageFormat.JPEG:
+                screenshot_options["quality"] = request.quality
+
+            # Capture screenshot
+            screenshot_bytes = await page.screenshot(**screenshot_options)
+
+        capture_time = (time.perf_counter() - start_time) * 1000
+        return screenshot_bytes, capture_time
+
+    async def health_check(self) -> bool:
+        """Check if the browser is healthy and can take screenshots."""
+        try:
+            if not self._browser or not self._browser.is_connected():
+                return False
+
+            # Quick test page load
+            context = await self._browser.new_context()
+            page = await context.new_page()
+            await page.goto("about:blank")
+            await context.close()
+            return True
+        except Exception:
+            return False
+
+
+# Global singleton instance
+screenshot_service = ScreenshotService()

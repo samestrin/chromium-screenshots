@@ -1,0 +1,12 @@
+# Web Framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# Browser Automation (Firefox support)
+playwright==1.49.1
+
+# Request validation
+pydantic==2.10.3
+
+# HTTP client for health checks
+httpx==0.28.1
