@@ -1,0 +1,81 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "chromium-screenshots"
+version = "1.1.0"
+description = "Fast, containerized screenshot service using Chromium with HTTP API and MCP server support"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Sam Estrin" }
+]
+keywords = [
+    "screenshot",
+    "chromium",
+    "playwright",
+    "mcp",
+    "api",
+    "headless",
+    "browser",
+    "automation",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Multimedia :: Graphics :: Capture :: Screen Capture",
+]
+
+dependencies = [
+    "playwright>=1.49.0",
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+api = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.0",
+]
+mcp = [
+    "mcp>=1.0.0",
+]
+all = [
+    "chromium-screenshots[api,mcp]",
+]
+dev = [
+    "chromium-screenshots[all]",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.8.0",
+]
+
+[project.scripts]
+chromium-screenshots-mcp = "mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/samestrin/chromium-screenshots"
+Repository = "https://github.com/samestrin/chromium-screenshots"
+Issues = "https://github.com/samestrin/chromium-screenshots/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app", "mcp"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

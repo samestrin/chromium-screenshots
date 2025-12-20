@@ -1,6 +1,6 @@
 # Screenshot API
 
-A fast, containerized screenshot service using Chrome (Chromium via Playwright) with support for viewport and full-page captures.
+A fast, containerized screenshot service using Chrome (Chromium via Playwright) with support for viewport and full-page captures. Available as both an HTTP API and an MCP server for AI agent integration.
 
 ## Features
 
@@ -11,6 +11,7 @@ A fast, containerized screenshot service using Chrome (Chromium via Playwright) 
 - **Ad blocking**: Optional blocking of common ad/tracking domains
 - **Wait controls**: Wait for page load, specific selectors, or custom delays
 - **Docker-ready**: Production-ready container with health checks
+- **MCP Server**: Model Context Protocol support for AI agents (Claude Code, etc.)
 
 ## Quick Start
 
@@ -161,6 +162,91 @@ Successful responses include these headers:
 - `X-Screenshot-Type`: viewport or full_page
 - `Content-Disposition`: Suggested filename
 
+## MCP Server (AI Agent Integration)
+
+The screenshot service can also run as an MCP (Model Context Protocol) server, allowing AI agents like Claude Code to capture screenshots directly.
+
+### Installation
+
+```bash
+# Install with MCP support
+pip install chromium-screenshots[mcp]
+
+# Or install all features
+pip install chromium-screenshots[all]
+
+# Install Chromium browser
+playwright install chromium
+```
+
+### Claude Code Configuration
+
+Add to your Claude Code MCP settings (`~/.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "chromium-screenshots": {
+      "command": "chromium-screenshots-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+Or if running from source:
+
+```json
+{
+  "mcpServers": {
+    "chromium-screenshots": {
+      "command": "python",
+      "args": ["-m", "mcp.server"],
+      "cwd": "/path/to/chromium-screenshots"
+    }
+  }
+}
+```
+
+### Available Tools
+
+#### `screenshot`
+
+Capture a screenshot and return base64-encoded image data.
+
+```
+Parameters:
+- url (required): URL to capture
+- screenshot_type: "viewport" or "full_page" (default: viewport)
+- format: "png" or "jpeg" (default: png)
+- width: Viewport width, 320-3840 (default: 1920)
+- height: Viewport height, 240-2160 (default: 1080)
+- quality: JPEG quality, 1-100 (default: 90)
+- wait_for_timeout: Wait after load in ms (default: 0)
+- wait_for_selector: CSS selector to wait for
+- delay: Delay before capture in ms (default: 0)
+- dark_mode: Emulate dark mode (default: false)
+- block_ads: Block ad domains (default: false)
+```
+
+#### `screenshot_to_file`
+
+Capture a screenshot and save it to disk.
+
+```
+Parameters:
+- url (required): URL to capture
+- output_path (required): Path to save the screenshot
+- (all other parameters same as screenshot)
+```
+
+### Why MCP?
+
+- **No HTTP overhead**: Direct in-process capture
+- **AI-native**: Designed for Claude Code and other AI agents
+- **Handles edge cases**: Long pages, custom dimensions that block other tools
+- **Simple setup**: One config entry, works immediately
+
 ## Deployment
 
 ### Production Considerations
@@ -237,16 +323,41 @@ spec:
 ## Architecture
 
 ```
-screenshot-api/
+chromium-screenshots/
 ├── app/
 │   ├── __init__.py
-│   ├── main.py          # FastAPI application
+│   ├── main.py          # FastAPI HTTP API
 │   ├── models.py        # Pydantic request/response models
-│   └── screenshot.py    # Playwright screenshot service
+│   └── screenshot.py    # Core Playwright screenshot service
+├── mcp/
+│   ├── __init__.py
+│   └── server.py        # MCP server wrapper
 ├── Dockerfile           # Container definition
 ├── docker-compose.yml   # Docker Compose config
-├── requirements.txt     # Python dependencies
+├── pyproject.toml       # Python package configuration
+├── requirements.txt     # HTTP API dependencies
+├── requirements-mcp.txt # MCP server dependencies
+├── CHANGELOG.md         # Version history
 └── README.md
+```
+
+```
+                  ┌─────────────────────────┐
+                  │   app/screenshot.py     │
+                  │   (core capture logic)  │
+                  └───────────┬─────────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              │                               │
+              ▼                               ▼
+      ┌───────────────┐               ┌───────────────┐
+      │  app/main.py  │               │ mcp/server.py │
+      │  (HTTP API)   │               │ (MCP server)  │
+      └───────────────┘               └───────────────┘
+              │                               │
+              ▼                               ▼
+         curl/fetch                      Claude Code
+         browsers                        AI agents
 ```
 
 ### Technology Stack
