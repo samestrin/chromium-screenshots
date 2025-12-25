@@ -1,6 +1,8 @@
-# Screenshot API
+# Chromium Screenshots
 
-A fast, containerized screenshot service using Chrome (Chromium via Playwright) with support for viewport and full-page captures. Available as both an HTTP API and an MCP server for AI agent integration.
+A fast, containerized screenshot service using Chromium (via Playwright) with support for viewport and full-page captures. Available as both an HTTP API and an MCP server for AI agent integration.
+
+**Repository:** [github.com/samestrin/chromium-screenshots](https://github.com/samestrin/chromium-screenshots)
 
 ## Features
 
@@ -33,14 +35,14 @@ docker compose down
 
 ```bash
 # Build the image
-docker build -t screenshot-api .
+docker build -t chromium-screenshots .
 
 # Run the container
 docker run -d \
-  --name screenshot-api \
+  --name chromium-screenshots \
   -p 8000:8000 \
   --memory=2g \
-  screenshot-api
+  chromium-screenshots
 ```
 
 ### Local Development
@@ -214,6 +216,28 @@ Successful responses include these headers:
 
 The screenshot service can also run as an MCP (Model Context Protocol) server, allowing AI agents like Claude Code to capture screenshots directly.
 
+### When to Use MCP vs HTTP API
+
+| Approach | Best For | Context Impact |
+|----------|----------|----------------|
+| **HTTP API (Recommended)** | Production workflows, automated testing, bulk captures | **Minimal** - images save to disk |
+| **MCP `screenshot_to_file`** | AI agent workflows needing file output | **Minimal** - images save to disk |
+| **MCP `screenshot`** | Quick previews, one-off captures | **High** - base64 data in context |
+
+**Context Warning:** The MCP `screenshot` tool returns base64-encoded image data directly in the response. A single full-page screenshot can easily exceed 500KB+ of base64 text, which will rapidly consume your AI agent's context window. For most AI agent workflows, use one of these context-friendly approaches:
+
+1. **HTTP API via curl/fetch** (best for automated workflows):
+   ```bash
+   curl "http://localhost:8000/screenshot?url=https://example.com" -o screenshot.png
+   ```
+
+2. **MCP `screenshot_to_file`** (best for AI agent file-based workflows):
+   ```
+   screenshot_to_file(url="https://example.com", output_path="./screenshot.png")
+   ```
+
+Both approaches save images to disk rather than loading them into context, making them suitable for capturing multiple screenshots without context overflow.
+
 ### Installation
 
 ```bash
@@ -292,10 +316,13 @@ Parameters:
 
 ### Why MCP?
 
-- **No HTTP overhead**: Direct in-process capture
-- **AI-native**: Designed for Claude Code and other AI agents
-- **Handles edge cases**: Long pages, custom dimensions that block other tools
-- **Simple setup**: One config entry, works immediately
+The MCP server is useful when:
+- You need AI agents to capture screenshots without setting up HTTP infrastructure
+- You want `screenshot_to_file` for context-efficient file-based captures
+- You need to handle edge cases like long pages or custom dimensions that block other screenshot tools
+- You prefer simple setup (one config entry) over running a separate HTTP service
+
+**Note:** For bulk screenshot operations or automated testing pipelines, the HTTP API is generally more efficient and doesn't require MCP client support.
 
 ## Deployment
 
@@ -315,20 +342,20 @@ Parameters:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: screenshot-api
+  name: chromium-screenshots
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: screenshot-api
+      app: chromium-screenshots
   template:
     metadata:
       labels:
-        app: screenshot-api
+        app: chromium-screenshots
     spec:
       containers:
-      - name: screenshot-api
-        image: screenshot-api:latest
+      - name: chromium-screenshots
+        image: chromium-screenshots:latest
         ports:
         - containerPort: 8000
         resources:
@@ -354,10 +381,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: screenshot-api
+  name: chromium-screenshots
 spec:
   selector:
-    app: screenshot-api
+    app: chromium-screenshots
   ports:
   - port: 80
     targetPort: 8000
@@ -444,7 +471,7 @@ Some sites block headless browsers. Try:
 
 Increase container memory limit:
 ```bash
-docker run --memory=4g screenshot-api
+docker run --memory=4g chromium-screenshots
 ```
 
 ### Slow captures
