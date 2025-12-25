@@ -4,10 +4,72 @@ import asyncio
 import time
 from contextlib import asynccontextmanager
 from typing import Optional
+from urllib.parse import urlparse
 
 from playwright.async_api import Browser, async_playwright
 
-from .models import ImageFormat, ScreenshotRequest, ScreenshotType
+from .models import Cookie, ImageFormat, ScreenshotRequest, ScreenshotType
+
+
+def extract_domain_from_url(url: str) -> Optional[str]:
+    """Extract the domain/hostname from a URL.
+
+    Args:
+        url: The URL to extract the domain from
+
+    Returns:
+        The hostname/domain, or None if the URL is invalid
+    """
+    try:
+        parsed = urlparse(url)
+        return parsed.hostname
+    except Exception:
+        return None
+
+
+def prepare_cookies_for_playwright(
+    cookies: Optional[list[Cookie]], url: str
+) -> list[dict]:
+    """Prepare cookies for Playwright's context.add_cookies() API.
+
+    Converts Cookie model instances to Playwright-compatible dictionaries,
+    inferring domain from the target URL when not specified.
+
+    Args:
+        cookies: List of Cookie objects (or None)
+        url: Target URL for domain inference
+
+    Returns:
+        List of cookie dictionaries compatible with Playwright
+    """
+    if not cookies:
+        return []
+
+    inferred_domain = extract_domain_from_url(url)
+    result = []
+
+    for cookie in cookies:
+        cookie_dict = {
+            "name": cookie.name,
+            "value": cookie.value,
+            "domain": cookie.domain if cookie.domain else inferred_domain,
+        }
+
+        # Only include optional fields if they're set
+        if cookie.path is not None:
+            cookie_dict["path"] = cookie.path
+        if cookie.httpOnly is not None:
+            cookie_dict["httpOnly"] = cookie.httpOnly
+        if cookie.secure is not None:
+            cookie_dict["secure"] = cookie.secure
+        if cookie.sameSite is not None:
+            cookie_dict["sameSite"] = cookie.sameSite
+        if cookie.expires is not None:
+            cookie_dict["expires"] = cookie.expires
+
+        result.append(cookie_dict)
+
+    return result
 
 # Common ad/tracking domains to block
 AD_DOMAINS = [
@@ -87,6 +149,14 @@ class ScreenshotService:
                     else route.continue_()
                 ),
             )
+
+        # Inject cookies if provided
+        if request.cookies:
+            playwright_cookies = prepare_cookies_for_playwright(
+                request.cookies, str(request.url)
+            )
+            if playwright_cookies:
+                await context.add_cookies(playwright_cookies)
 
         page = await context.new_page()
         try:

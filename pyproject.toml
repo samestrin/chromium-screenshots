@@ -59,7 +59,7 @@ dev = [
 ]
 
 [project.scripts]
-chromium-screenshots-mcp = "mcp.server:main"
+chromium-screenshots-mcp = "screenshot_mcp.server:main"
 
 [project.urls]
 Homepage = "https://github.com/samestrin/chromium-screenshots"
@@ -67,7 +67,7 @@ Repository = "https://github.com/samestrin/chromium-screenshots"
 Issues = "https://github.com/samestrin/chromium-screenshots/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["app", "mcp"]
+packages = ["app", "screenshot_mcp"]
 
 [tool.ruff]
 target-version = "py311"

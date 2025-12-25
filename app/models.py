@@ -1,9 +1,56 @@
 """Pydantic models for screenshot requests and responses."""
 
 from enum import Enum
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
+
+
+class SameSitePolicy(str, Enum):
+    """Cookie SameSite attribute values."""
+
+    STRICT = "Strict"
+    LAX = "Lax"
+    NONE = "None"
+
+
+class Cookie(BaseModel):
+    """Cookie model for browser cookie injection.
+
+    Compatible with Playwright's context.add_cookies() API.
+    All optional fields default to None and will be omitted when
+    converting to Playwright format if not specified.
+    """
+
+    name: str = Field(..., description="Cookie name (required)")
+    value: str = Field(..., description="Cookie value (required)")
+    domain: Optional[str] = Field(
+        default=None,
+        description="Cookie domain. If not specified, inferred from target URL",
+    )
+    path: Optional[str] = Field(
+        default=None, description="Cookie path. Defaults to '/' if not specified"
+    )
+    httpOnly: Optional[bool] = Field(
+        default=None, description="Whether the cookie is HTTP-only"
+    )
+    secure: Optional[bool] = Field(
+        default=None, description="Whether the cookie requires HTTPS"
+    )
+    sameSite: Optional[Literal["Strict", "Lax", "None"]] = Field(
+        default=None, description="Cookie SameSite policy: Strict, Lax, or None"
+    )
+    expires: Optional[int] = Field(
+        default=None, description="Cookie expiration as Unix timestamp"
+    )
+
+    def __repr__(self) -> str:
+        """Return string representation with masked value for security."""
+        return f"Cookie(name={self.name!r}, value='***', domain={self.domain!r})"
+
+    def __str__(self) -> str:
+        """Return string with masked value for security in logs."""
+        return f"Cookie(name={self.name!r}, value='***', domain={self.domain!r})"
 
 
 class ScreenshotType(str, Enum):
@@ -63,6 +110,10 @@ class ScreenshotRequest(BaseModel):
     )
     block_ads: bool = Field(
         default=False, description="Block common ad domains"
+    )
+    cookies: Optional[list[Cookie]] = Field(
+        default=None,
+        description="Cookies to inject into the browser context before capture",
     )
 
 

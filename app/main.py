@@ -1,13 +1,14 @@
-"""FastAPI application for Firefox screenshot service."""
+"""FastAPI application for Chromium screenshot service."""
 
 import asyncio
 from contextlib import asynccontextmanager
-from io import BytesIO
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 
 from .models import (
+    Cookie,
     ErrorResponse,
     ImageFormat,
     ScreenshotRequest,
@@ -15,6 +16,42 @@ from .models import (
     ScreenshotType,
 )
 from .screenshot import screenshot_service
+
+
+def parse_cookie_string(cookie_string: Optional[str]) -> list[Cookie]:
+    """Parse a cookie string into a list of Cookie objects.
+
+    Format: "name=value;name2=value2" (semicolon-separated)
+
+    Args:
+        cookie_string: Semicolon-separated cookie string, or None
+
+    Returns:
+        List of Cookie objects
+
+    Raises:
+        HTTPException: If cookie format is invalid (missing =)
+    """
+    if not cookie_string:
+        return []
+
+    cookies = []
+    for cookie_part in cookie_string.split(";"):
+        cookie_part = cookie_part.strip()
+        if not cookie_part:
+            continue
+
+        if "=" not in cookie_part:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid cookie format: expected 'name=value', got '{cookie_part}'",
+            )
+
+        # Split on first = only (value may contain =)
+        name, value = cookie_part.split("=", 1)
+        cookies.append(Cookie(name=name.strip(), value=value.strip()))
+
+    return cookies
 
 
 @asynccontextmanager
@@ -145,6 +182,10 @@ async def take_screenshot_get(
         default=0, ge=0, le=30000, description="Wait time after load (ms)"
     ),
     dark: bool = Query(default=False, description="Enable dark mode"),
+    cookies: Optional[str] = Query(
+        default=None,
+        description="Cookies to inject: 'name=value;name2=value2' format",
+    ),
 ):
     """
     Capture a screenshot using GET parameters.
@@ -153,7 +194,11 @@ async def take_screenshot_get(
     and optional parameters as query strings.
 
     Example: /screenshot?url=https://example.com&type=full_page
+    Example with cookies: /screenshot?url=https://example.com&cookies=session=abc123
     """
+    # Parse cookie string into Cookie objects
+    parsed_cookies = parse_cookie_string(cookies) if cookies else None
+
     request = ScreenshotRequest(
         url=url,
         screenshot_type=type,
@@ -163,6 +208,7 @@ async def take_screenshot_get(
         quality=quality,
         wait_for_timeout=wait,
         dark_mode=dark,
+        cookies=parsed_cookies,
     )
 
     return await take_screenshot(request)
