@@ -135,6 +135,22 @@ async def list_tools() -> list[Tool]:
                             "required": ["name", "value"],
                         },
                     },
+                    "localStorage": {
+                        "type": "object",
+                        "description": (
+                            "localStorage key-value pairs to inject before capture. "
+                            "For localStorage-based auth (Wasp, OpenSaaS, Firebase). "
+                            "Example: {'wasp:sessionId': 'abc123', 'theme': 'dark'}"
+                        ),
+                    },
+                    "sessionStorage": {
+                        "type": "object",
+                        "description": (
+                            "sessionStorage key-value pairs to inject before capture. "
+                            "For temporary session data. "
+                            "Example: {'tempToken': 'xyz789'}"
+                        ),
+                    },
                 },
                 "required": ["url"],
             },
@@ -239,6 +255,22 @@ async def list_tools() -> list[Tool]:
                             "required": ["name", "value"],
                         },
                     },
+                    "localStorage": {
+                        "type": "object",
+                        "description": (
+                            "localStorage key-value pairs to inject before capture. "
+                            "For localStorage-based auth (Wasp, OpenSaaS, Firebase). "
+                            "Example: {'wasp:sessionId': 'abc123', 'theme': 'dark'}"
+                        ),
+                    },
+                    "sessionStorage": {
+                        "type": "object",
+                        "description": (
+                            "sessionStorage key-value pairs to inject before capture. "
+                            "For temporary session data. "
+                            "Example: {'tempToken': 'xyz789'}"
+                        ),
+                    },
                 },
                 "required": ["url", "output_path"],
             },
@@ -282,6 +314,8 @@ async def handle_screenshot(arguments: dict) -> list[TextContent]:
             dark_mode=arguments.get("dark_mode", False),
             block_ads=arguments.get("block_ads", False),
             cookies=_parse_cookies(arguments.get("cookies")),
+            localStorage=arguments.get("localStorage"),
+            sessionStorage=arguments.get("sessionStorage"),
         )
 
         screenshot_bytes, capture_time = await service.capture(request)
@@ -335,6 +369,8 @@ async def handle_screenshot_to_file(arguments: dict) -> list[TextContent]:
             dark_mode=arguments.get("dark_mode", False),
             block_ads=arguments.get("block_ads", False),
             cookies=_parse_cookies(arguments.get("cookies")),
+            localStorage=arguments.get("localStorage"),
+            sessionStorage=arguments.get("sessionStorage"),
         )
 
         screenshot_bytes, capture_time = await service.capture(request)
