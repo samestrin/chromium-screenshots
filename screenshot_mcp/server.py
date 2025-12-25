@@ -15,7 +15,7 @@ from mcp.types import TextContent, Tool
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.models import ImageFormat, ScreenshotRequest, ScreenshotType
+from app.models import Cookie, ImageFormat, ScreenshotRequest, ScreenshotType
 from app.screenshot import ScreenshotService
 
 # Create server instance
@@ -42,8 +42,8 @@ async def list_tools() -> list[Tool]:
             name="screenshot",
             description=(
                 "Capture a screenshot of a webpage. Returns base64-encoded image data. "
-                "Use this for capturing web pages, especially long/full-page screenshots "
-                "that other tools struggle with."
+                "Supports cookie injection for authenticated pages. "
+                "Use this for capturing web pages, especially long/full-page screenshots."
             ),
             inputSchema={
                 "type": "object",
@@ -113,6 +113,28 @@ async def list_tools() -> list[Tool]:
                         "default": False,
                         "description": "Block common ad/tracking domains",
                     },
+                    "cookies": {
+                        "type": "array",
+                        "description": "Cookies to inject for authenticated pages",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string", "description": "Cookie name"},
+                                "value": {"type": "string", "description": "Cookie value"},
+                                "domain": {"type": "string", "description": "Cookie domain"},
+                                "path": {"type": "string", "description": "Cookie path"},
+                                "httpOnly": {"type": "boolean", "description": "HTTP-only"},
+                                "secure": {"type": "boolean", "description": "Secure flag"},
+                                "sameSite": {
+                                    "type": "string",
+                                    "enum": ["Strict", "Lax", "None"],
+                                    "description": "SameSite policy",
+                                },
+                                "expires": {"type": "integer", "description": "Unix timestamp"},
+                            },
+                            "required": ["name", "value"],
+                        },
+                    },
                 },
                 "required": ["url"],
             },
@@ -121,7 +143,7 @@ async def list_tools() -> list[Tool]:
             name="screenshot_to_file",
             description=(
                 "Capture a screenshot and save it to a file. Returns the file path. "
-                "Useful when you need to save the screenshot for later use."
+                "Supports cookie injection for authenticated pages."
             ),
             inputSchema={
                 "type": "object",
@@ -195,6 +217,28 @@ async def list_tools() -> list[Tool]:
                         "default": False,
                         "description": "Block ad domains",
                     },
+                    "cookies": {
+                        "type": "array",
+                        "description": "Cookies to inject for authenticated pages",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string", "description": "Cookie name"},
+                                "value": {"type": "string", "description": "Cookie value"},
+                                "domain": {"type": "string", "description": "Cookie domain"},
+                                "path": {"type": "string", "description": "Cookie path"},
+                                "httpOnly": {"type": "boolean", "description": "HTTP-only"},
+                                "secure": {"type": "boolean", "description": "Secure flag"},
+                                "sameSite": {
+                                    "type": "string",
+                                    "enum": ["Strict", "Lax", "None"],
+                                    "description": "SameSite policy",
+                                },
+                                "expires": {"type": "integer", "description": "Unix timestamp"},
+                            },
+                            "required": ["name", "value"],
+                        },
+                    },
                 },
                 "required": ["url", "output_path"],
             },
@@ -211,6 +255,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return await handle_screenshot_to_file(arguments)
     else:
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
+
+
+def _parse_cookies(cookie_dicts: list[dict] | None) -> list[Cookie] | None:
+    """Convert cookie dictionaries to Cookie model instances."""
+    if not cookie_dicts:
+        return None
+    return [Cookie(**cookie) for cookie in cookie_dicts]
 
 
 async def handle_screenshot(arguments: dict) -> list[TextContent]:
@@ -230,6 +281,7 @@ async def handle_screenshot(arguments: dict) -> list[TextContent]:
             delay=arguments.get("delay", 0),
             dark_mode=arguments.get("dark_mode", False),
             block_ads=arguments.get("block_ads", False),
+            cookies=_parse_cookies(arguments.get("cookies")),
         )
 
         screenshot_bytes, capture_time = await service.capture(request)
@@ -282,6 +334,7 @@ async def handle_screenshot_to_file(arguments: dict) -> list[TextContent]:
             delay=arguments.get("delay", 0),
             dark_mode=arguments.get("dark_mode", False),
             block_ads=arguments.get("block_ads", False),
+            cookies=_parse_cookies(arguments.get("cookies")),
         )
 
         screenshot_bytes, capture_time = await service.capture(request)
