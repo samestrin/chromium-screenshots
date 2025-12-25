@@ -225,6 +225,14 @@ async def take_screenshot_get(
         default=None,
         description="Cookies to inject: 'name=value;name2=value2' format",
     ),
+    localStorage: Optional[str] = Query(
+        default=None,
+        description="localStorage to inject: 'key=value;key2=value2' format",
+    ),
+    sessionStorage: Optional[str] = Query(
+        default=None,
+        description="sessionStorage to inject: 'key=value;key2=value2' format",
+    ),
 ):
     """
     Capture a screenshot using GET parameters.
@@ -234,9 +242,16 @@ async def take_screenshot_get(
 
     Example: /screenshot?url=https://example.com&type=full_page
     Example with cookies: /screenshot?url=https://example.com&cookies=session=abc123
+    Example with localStorage: /screenshot?url=https://example.com&localStorage=wasp:sessionId=abc123
     """
     # Parse cookie string into Cookie objects
     parsed_cookies = parse_cookie_string(cookies) if cookies else None
+
+    # Parse storage strings into dicts
+    parsed_local_storage = parse_storage_string(localStorage) if localStorage else None
+    parsed_session_storage = (
+        parse_storage_string(sessionStorage) if sessionStorage else None
+    )
 
     request = ScreenshotRequest(
         url=url,
@@ -248,6 +263,8 @@ async def take_screenshot_get(
         wait_for_timeout=wait,
         dark_mode=dark,
         cookies=parsed_cookies,
+        localStorage=parsed_local_storage,
+        sessionStorage=parsed_session_storage,
     )
 
     return await take_screenshot(request)
