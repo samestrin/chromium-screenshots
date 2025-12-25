@@ -1,9 +1,10 @@
 """Screenshot service using Playwright with Chromium."""
 
 import asyncio
+import json
 import time
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 from playwright.async_api import Browser, async_playwright
@@ -25,6 +26,66 @@ def extract_domain_from_url(url: str) -> Optional[str]:
         return parsed.hostname
     except Exception:
         return None
+
+
+def extract_origin(url: str) -> str:
+    """Extract the origin (scheme + host + port) from a URL.
+
+    Used for storage injection - localStorage/sessionStorage are origin-scoped.
+    Example: "https://example.com:8080/path" -> "https://example.com:8080"
+
+    Args:
+        url: The URL to extract the origin from
+
+    Returns:
+        The origin string (scheme://host[:port])
+    """
+    parsed = urlparse(url)
+    # Include port only if present (netloc includes it)
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def has_storage_to_inject(request: ScreenshotRequest) -> bool:
+    """Check if the request has localStorage or sessionStorage to inject.
+
+    Args:
+        request: The screenshot request
+
+    Returns:
+        True if there are storage values to inject, False otherwise
+    """
+    has_local = request.localStorage is not None and len(request.localStorage) > 0
+    has_session = (
+        request.sessionStorage is not None and len(request.sessionStorage) > 0
+    )
+    return has_local or has_session
+
+
+def build_storage_injection_script(storage_type: str, values: dict[str, Any]) -> str:
+    """Build JavaScript code to inject storage values.
+
+    Values are JSON-stringified if they are not strings. This matches how
+    frameworks like Wasp expect localStorage values to be stored.
+
+    Args:
+        storage_type: Either "localStorage" or "sessionStorage"
+        values: Dictionary of key-value pairs to inject
+
+    Returns:
+        JavaScript code string to execute via page.evaluate()
+    """
+    lines = []
+    for key, value in values.items():
+        # Stringify non-string values (objects, arrays, numbers, booleans)
+        if isinstance(value, str):
+            serialized = value
+        else:
+            serialized = json.dumps(value)
+        # Escape for JavaScript string literal
+        escaped_key = key.replace("\\", "\\\\").replace("'", "\\'")
+        escaped_value = serialized.replace("\\", "\\\\").replace("'", "\\'")
+        lines.append(f"{storage_type}.setItem('{escaped_key}', '{escaped_value}');")
+    return "\n".join(lines)
 
 
 def prepare_cookies_for_playwright(
@@ -126,7 +187,14 @@ class ScreenshotService:
 
     @asynccontextmanager
     async def _get_page(self, request: ScreenshotRequest):
-        """Context manager for creating and cleaning up browser pages."""
+        """Context manager for creating and cleaning up browser pages.
+
+        Handles two-step navigation for storage injection:
+        1. If storage (localStorage/sessionStorage) is provided, first navigate
+           to the origin to establish the browsing context
+        2. Inject storage values via page.evaluate()
+        3. Then navigate to the actual target URL
+        """
         if not self._browser:
             await self.initialize()
 
@@ -159,6 +227,27 @@ class ScreenshotService:
                 await context.add_cookies(playwright_cookies)
 
         page = await context.new_page()
+
+        # Two-step navigation for storage injection
+        if has_storage_to_inject(request):
+            # Step 1: Navigate to origin first (fast, just establish context)
+            origin = extract_origin(str(request.url))
+            await page.goto(origin, wait_until="domcontentloaded", timeout=30000)
+
+            # Step 2: Inject localStorage values
+            if request.localStorage:
+                script = build_storage_injection_script(
+                    "localStorage", request.localStorage
+                )
+                await page.evaluate(script)
+
+            # Step 3: Inject sessionStorage values
+            if request.sessionStorage:
+                script = build_storage_injection_script(
+                    "sessionStorage", request.sessionStorage
+                )
+                await page.evaluate(script)
+
         try:
             yield page
         finally:
