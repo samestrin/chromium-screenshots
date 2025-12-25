@@ -1,7 +1,7 @@
 """Pydantic models for screenshot requests and responses."""
 
 from enum import Enum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -114,6 +114,18 @@ class ScreenshotRequest(BaseModel):
     cookies: Optional[list[Cookie]] = Field(
         default=None,
         description="Cookies to inject into the browser context before capture",
+    )
+    localStorage: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="localStorage key-value pairs to inject before capture. "
+        "Values can be strings or objects (objects will be JSON-stringified). "
+        "Example: {'wasp:sessionId': 'abc123', 'theme': 'dark'}",
+    )
+    sessionStorage: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="sessionStorage key-value pairs to inject before capture. "
+        "Values can be strings or objects (objects will be JSON-stringified). "
+        "Example: {'temp-data': 'xyz'}",
     )
 
 

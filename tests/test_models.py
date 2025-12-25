@@ -147,3 +147,89 @@ class TestScreenshotRequestCookies:
                 url="https://example.com",
                 cookies=[{"invalid": "cookie"}],  # type: ignore
             )
+
+
+class TestScreenshotRequestStorage:
+    """Tests for ScreenshotRequest localStorage and sessionStorage fields."""
+
+    def test_screenshot_request_has_localstorage_field(self):
+        """ScreenshotRequest has localStorage field of type dict[str, Any]."""
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(
+            url="https://example.com",
+            localStorage={"wasp:sessionId": "abc123"}
+        )
+        assert request.localStorage is not None
+        assert request.localStorage == {"wasp:sessionId": "abc123"}
+
+    def test_screenshot_request_has_sessionstorage_field(self):
+        """ScreenshotRequest has sessionStorage field of type dict[str, Any]."""
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(
+            url="https://example.com",
+            sessionStorage={"temp-data": "xyz"}
+        )
+        assert request.sessionStorage is not None
+        assert request.sessionStorage == {"temp-data": "xyz"}
+
+    def test_screenshot_request_storage_defaults_to_none(self):
+        """localStorage and sessionStorage default to None when not provided."""
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(url="https://example.com")
+        assert request.localStorage is None
+        assert request.sessionStorage is None
+
+    def test_screenshot_request_accepts_empty_storage_dict(self):
+        """ScreenshotRequest accepts empty dicts for storage fields."""
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(
+            url="https://example.com",
+            localStorage={},
+            sessionStorage={}
+        )
+        assert request.localStorage == {}
+        assert request.sessionStorage == {}
+
+    def test_screenshot_request_storage_accepts_nested_objects(self):
+        """Storage fields accept nested objects as values (will be JSON-stringified later)."""
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(
+            url="https://example.com",
+            localStorage={
+                "user-preferences": {"theme": "dark", "lang": "en"},
+                "simple": "value"
+            }
+        )
+        assert request.localStorage["user-preferences"] == {"theme": "dark", "lang": "en"}
+        assert request.localStorage["simple"] == "value"
+
+    def test_screenshot_request_storage_special_characters_in_keys(self):
+        """Storage fields accept special characters like colons in keys."""
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(
+            url="https://example.com",
+            localStorage={"wasp:sessionId": "token123", "color-theme": "light"}
+        )
+        assert "wasp:sessionId" in request.localStorage
+        assert "color-theme" in request.localStorage
+
+    def test_screenshot_request_combined_cookies_and_storage(self):
+        """ScreenshotRequest accepts cookies and storage together."""
+        from app.models import Cookie, ScreenshotRequest
+
+        request = ScreenshotRequest(
+            url="https://example.com",
+            cookies=[Cookie(name="tracking", value="123")],
+            localStorage={"wasp:sessionId": "abc123"},
+            sessionStorage={"temp": "data"}
+        )
+        assert request.cookies is not None
+        assert len(request.cookies) == 1
+        assert request.localStorage == {"wasp:sessionId": "abc123"}
+        assert request.sessionStorage == {"temp": "data"}
