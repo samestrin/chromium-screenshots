@@ -1,4 +1,4 @@
-# Chromium Screenshots
+# Chromium Screenshots API
 
 A fast, containerized screenshot service using Chromium (via Playwright) with support for viewport and full-page captures. Available as both an HTTP API and an MCP server for AI agent integration.
 
