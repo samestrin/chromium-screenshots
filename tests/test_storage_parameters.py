@@ -49,7 +49,8 @@ class TestParseStorageString:
         with pytest.raises(HTTPException) as exc_info:
             parse_storage_string("invalid_no_equals")
         assert exc_info.value.status_code == 400
-        assert "localStorage" in exc_info.value.detail.lower() or "storage" in exc_info.value.detail.lower()
+        detail_lower = exc_info.value.detail.lower()
+        assert "storage" in detail_lower
 
     def test_parse_storage_string_value_with_equals(self):
         """Value can contain = signs."""
