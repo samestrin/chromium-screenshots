@@ -48,6 +48,10 @@ class Cookie(BaseModel):
         """Return string representation with masked value for security."""
         return f"Cookie(name={self.name!r}, value='***', domain={self.domain!r})"
 
+    def __str__(self) -> str:
+        """Return string with masked value for security in logs."""
+        return f"Cookie(name={self.name!r}, value='***', domain={self.domain!r})"
+
 
 class ScreenshotType(str, Enum):
     """Screenshot capture type."""
