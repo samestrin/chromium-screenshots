@@ -1,7 +1,5 @@
 """Tests for screenshot service - domain extraction and cookie injection."""
 
-import pytest
-from urllib.parse import urlparse
 
 
 class TestDomainExtraction:

@@ -2,10 +2,9 @@
 
 import asyncio
 from contextlib import asynccontextmanager
-from io import BytesIO
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response
 
 from .models import (
     ErrorResponse,

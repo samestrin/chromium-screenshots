@@ -56,7 +56,7 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "enum": ["viewport", "full_page"],
                         "default": "viewport",
-                        "description": "Type of screenshot: viewport (visible area) or full_page (entire scrollable page)",
+                        "description": "Type: viewport (visible area) or full_page (entire page)",
                     },
                     "format": {
                         "type": "string",
