@@ -54,6 +54,45 @@ def parse_cookie_string(cookie_string: Optional[str]) -> list[Cookie]:
     return cookies
 
 
+def parse_storage_string(storage_string: Optional[str]) -> dict[str, str]:
+    """Parse a storage string into a dictionary.
+
+    Format: "key=value;key2=value2" (semicolon-separated)
+
+    Keys can contain special characters like colons (e.g., wasp:sessionId).
+    Values can contain = signs.
+
+    Args:
+        storage_string: Semicolon-separated storage string, or None
+
+    Returns:
+        Dictionary of key-value pairs
+
+    Raises:
+        HTTPException: If storage format is invalid (missing =)
+    """
+    if not storage_string:
+        return {}
+
+    storage = {}
+    for storage_part in storage_string.split(";"):
+        storage_part = storage_part.strip()
+        if not storage_part:
+            continue
+
+        if "=" not in storage_part:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid storage format: expected 'key=value', got '{storage_part}'",
+            )
+
+        # Split on first = only (value may contain =)
+        key, value = storage_part.split("=", 1)
+        storage[key.strip()] = value.strip()
+
+    return storage
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle - initialize and cleanup browser."""
@@ -186,6 +225,14 @@ async def take_screenshot_get(
         default=None,
         description="Cookies to inject: 'name=value;name2=value2' format",
     ),
+    localStorage: Optional[str] = Query(
+        default=None,
+        description="localStorage to inject: 'key=value;key2=value2' format",
+    ),
+    sessionStorage: Optional[str] = Query(
+        default=None,
+        description="sessionStorage to inject: 'key=value;key2=value2' format",
+    ),
 ):
     """
     Capture a screenshot using GET parameters.
@@ -195,9 +242,16 @@ async def take_screenshot_get(
 
     Example: /screenshot?url=https://example.com&type=full_page
     Example with cookies: /screenshot?url=https://example.com&cookies=session=abc123
+    Example with localStorage: /screenshot?url=https://example.com&localStorage=wasp:sessionId=abc123
     """
     # Parse cookie string into Cookie objects
     parsed_cookies = parse_cookie_string(cookies) if cookies else None
+
+    # Parse storage strings into dicts
+    parsed_local_storage = parse_storage_string(localStorage) if localStorage else None
+    parsed_session_storage = (
+        parse_storage_string(sessionStorage) if sessionStorage else None
+    )
 
     request = ScreenshotRequest(
         url=url,
@@ -209,6 +263,8 @@ async def take_screenshot_get(
         wait_for_timeout=wait,
         dark_mode=dark,
         cookies=parsed_cookies,
+        localStorage=parsed_local_storage,
+        sessionStorage=parsed_session_storage,
     )
 
     return await take_screenshot(request)

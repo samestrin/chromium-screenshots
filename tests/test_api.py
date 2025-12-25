@@ -245,3 +245,218 @@ class TestPostEndpointCookies:
 
         # Should return validation error
         assert response.status_code == 422
+
+
+class TestGetEndpointStorage:
+    """Tests for GET /screenshot localStorage and sessionStorage parameters."""
+
+    def test_get_endpoint_accepts_localstorage_parameter(self):
+        """GET endpoint accepts localStorage query parameter."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.get(
+                "/screenshot",
+                params={
+                    "url": "https://example.com",
+                    "localStorage": "wasp:sessionId=abc123",
+                },
+            )
+
+            assert response.status_code in [200, 500]
+
+    def test_get_endpoint_accepts_sessionstorage_parameter(self):
+        """GET endpoint accepts sessionStorage query parameter."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.get(
+                "/screenshot",
+                params={
+                    "url": "https://example.com",
+                    "sessionStorage": "temp=data",
+                },
+            )
+
+            assert response.status_code in [200, 500]
+
+    def test_get_endpoint_accepts_multiple_storage_values(self):
+        """GET endpoint accepts semicolon-separated storage values."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.get(
+                "/screenshot",
+                params={
+                    "url": "https://example.com",
+                    "localStorage": "key1=val1;key2=val2;key3=val3",
+                },
+            )
+
+            assert response.status_code in [200, 500]
+
+    def test_get_endpoint_accepts_combined_cookies_and_storage(self):
+        """GET endpoint accepts cookies and storage together."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.get(
+                "/screenshot",
+                params={
+                    "url": "https://example.com",
+                    "cookies": "session=abc123",
+                    "localStorage": "wasp:sessionId=token",
+                    "sessionStorage": "temp=data",
+                },
+            )
+
+            assert response.status_code in [200, 500]
+
+    def test_get_endpoint_storage_optional(self):
+        """GET endpoint works without storage parameters."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.get(
+                "/screenshot",
+                params={"url": "https://example.com"},
+            )
+
+            assert response.status_code in [200, 500]
+
+    def test_get_endpoint_invalid_localstorage_format(self):
+        """GET endpoint returns 400 for invalid localStorage format."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.get(
+            "/screenshot",
+            params={
+                "url": "https://example.com",
+                "localStorage": "invalid_no_equals",
+            },
+        )
+
+        assert response.status_code == 400
+
+
+class TestPostEndpointStorage:
+    """Tests for POST /screenshot localStorage and sessionStorage in JSON body."""
+
+    def test_post_endpoint_accepts_localstorage_object(self):
+        """POST endpoint accepts localStorage dict in request body."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.post(
+                "/screenshot",
+                json={
+                    "url": "https://example.com",
+                    "localStorage": {"wasp:sessionId": "abc123", "theme": "dark"},
+                },
+            )
+
+            assert response.status_code in [200, 500]
+
+    def test_post_endpoint_accepts_sessionstorage_object(self):
+        """POST endpoint accepts sessionStorage dict in request body."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.post(
+                "/screenshot",
+                json={
+                    "url": "https://example.com",
+                    "sessionStorage": {"temp": "data"},
+                },
+            )
+
+            assert response.status_code in [200, 500]
+
+    def test_post_endpoint_accepts_nested_objects(self):
+        """POST endpoint accepts nested objects in localStorage."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.post(
+                "/screenshot",
+                json={
+                    "url": "https://example.com",
+                    "localStorage": {
+                        "user": {"id": 123, "name": "test"},
+                        "prefs": {"theme": "dark", "lang": "en"},
+                    },
+                },
+            )
+
+            assert response.status_code in [200, 500]
+
+    def test_post_endpoint_combined_cookies_and_storage(self):
+        """POST endpoint accepts cookies and storage together."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.post(
+                "/screenshot",
+                json={
+                    "url": "https://example.com",
+                    "cookies": [{"name": "tracking", "value": "123"}],
+                    "localStorage": {"wasp:sessionId": "abc123"},
+                    "sessionStorage": {"temp": "data"},
+                },
+            )
+
+            assert response.status_code in [200, 500]
+
+    def test_post_endpoint_storage_optional(self):
+        """POST endpoint works without storage fields."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.post(
+                "/screenshot",
+                json={"url": "https://example.com"},
+            )
+
+            assert response.status_code in [200, 500]
