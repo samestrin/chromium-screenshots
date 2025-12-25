@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Optional dependency groups: `api`, `mcp`, `all`, `dev`
 - `chromium-screenshots-mcp` CLI entry point for running the MCP server
 - `requirements-mcp.txt` for MCP-specific dependencies
+- `screenshot_mcp/` package (named to avoid collision with `mcp` package)
 
 ### Changed
 

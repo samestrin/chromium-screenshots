@@ -201,7 +201,7 @@ Or if running from source:
   "mcpServers": {
     "chromium-screenshots": {
       "command": "python",
-      "args": ["-m", "mcp.server"],
+      "args": ["-m", "screenshot_mcp.server"],
       "cwd": "/path/to/chromium-screenshots"
     }
   }
@@ -329,7 +329,7 @@ chromium-screenshots/
 │   ├── main.py          # FastAPI HTTP API
 │   ├── models.py        # Pydantic request/response models
 │   └── screenshot.py    # Core Playwright screenshot service
-├── mcp/
+├── screenshot_mcp/
 │   ├── __init__.py
 │   └── server.py        # MCP server wrapper
 ├── Dockerfile           # Container definition
@@ -351,7 +351,7 @@ chromium-screenshots/
               │                               │
               ▼                               ▼
       ┌───────────────┐               ┌───────────────┐
-      │  app/main.py  │               │ mcp/server.py │
+      │  app/main.py  │               │screenshot_mcp/│
       │  (HTTP API)   │               │ (MCP server)  │
       └───────────────┘               └───────────────┘
               │                               │
