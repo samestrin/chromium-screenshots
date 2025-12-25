@@ -10,6 +10,7 @@ A fast, containerized screenshot service using Chromium (via Playwright) with su
 - **Viewport & Full-page**: Capture visible area or entire scrollable page
 - **Multiple formats**: PNG and JPEG output with quality control
 - **Cookie injection**: Capture authenticated pages with session cookies
+- **localStorage/sessionStorage injection**: Capture authenticated SPA pages (Wasp, OpenSaaS, Firebase, etc.)
 - **Dark mode**: Emulate dark color scheme preference
 - **Ad blocking**: Optional blocking of common ad/tracking domains
 - **Wait controls**: Wait for page load, specific selectors, or custom delays
@@ -91,6 +92,12 @@ curl "http://localhost:8000/screenshot?url=https://example.com&format=jpeg&quali
 
 # Screenshot with cookies for authenticated pages
 curl "http://localhost:8000/screenshot?url=https://dashboard.example.com&cookies=session=abc123;auth=token456" -o dashboard.png
+
+# Screenshot with localStorage for SPA authentication (Wasp, Firebase, etc.)
+curl "http://localhost:8000/screenshot?url=https://app.example.com/dashboard&localStorage=wasp:sessionId=abc123;theme=dark" -o spa-dashboard.png
+
+# Screenshot with both cookies and localStorage
+curl "http://localhost:8000/screenshot?url=https://app.example.com&cookies=tracking=xyz&localStorage=authToken=secret123" -o authenticated.png
 ```
 
 #### POST /screenshot (Full Control)
@@ -123,6 +130,29 @@ curl -X POST "http://localhost:8000/screenshot" \
     ]
   }' \
   -o authenticated.png
+
+# With localStorage for SPA authentication (Wasp, OpenSaaS, Firebase)
+curl -X POST "http://localhost:8000/screenshot" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://app.example.com/dashboard",
+    "localStorage": {
+      "wasp:sessionId": "ic3t2fnhclk3pe46zu3d5ml5dnx5ng3u5fbh7h23",
+      "color-theme": "dark"
+    }
+  }' \
+  -o spa-authenticated.png
+
+# With combined cookies + localStorage + sessionStorage
+curl -X POST "http://localhost:8000/screenshot" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://app.example.com/dashboard",
+    "cookies": [{"name": "tracking", "value": "xyz"}],
+    "localStorage": {"wasp:sessionId": "abc123"},
+    "sessionStorage": {"temp-data": "form-state"}
+  }' \
+  -o full-auth.png
 ```
 
 #### POST /screenshot/json (Metadata Only)
@@ -173,6 +203,8 @@ curl http://localhost:8000/health
 | `dark_mode` | bool | false | Emulate dark color scheme |
 | `block_ads` | bool | false | Block common ad domains |
 | `cookies` | array/string | null | Cookies to inject (see below) |
+| `localStorage` | object/string | null | localStorage to inject (see below) |
+| `sessionStorage` | object/string | null | sessionStorage to inject (see below) |
 
 ### Cookie Parameters
 
@@ -204,6 +236,43 @@ cookies=name=value;name2=value2
 | `secure` | No | Secure flag |
 | `sameSite` | No | "Strict", "Lax", or "None" |
 | `expires` | No | Unix timestamp for expiration |
+
+### Storage Parameters (localStorage/sessionStorage)
+
+For SPAs using localStorage-based authentication (Wasp, OpenSaaS, Firebase, etc.), you can inject storage values:
+
+**GET (query string format):**
+```
+localStorage=key=value;key2=value2
+sessionStorage=tempKey=tempValue
+```
+
+**POST (JSON object format):**
+```json
+{
+  "localStorage": {
+    "wasp:sessionId": "abc123",
+    "user-preferences": "{\"theme\":\"dark\",\"lang\":\"en\"}"
+  },
+  "sessionStorage": {
+    "temp-form-data": "draft-content"
+  }
+}
+```
+
+**How it works:**
+1. Browser navigates to the target origin first
+2. Storage values are injected via JavaScript
+3. Browser navigates to the full target URL
+4. Page loads with authentication in place
+5. Screenshot is captured
+
+**Performance note:** Storage injection adds ~500ms due to the two-step navigation required (origin → inject → target URL).
+
+**Security notes:**
+- Each request uses a fresh browser context (no storage persistence between requests)
+- Storage values are never logged
+- Storage is origin-scoped (browser-enforced security)
 
 ### Response Headers
 
@@ -284,7 +353,7 @@ Or if running from source:
 
 #### `screenshot`
 
-Capture a screenshot and return base64-encoded image data. Supports cookie injection for authenticated pages.
+Capture a screenshot and return base64-encoded image data. Supports cookie and storage injection for authenticated pages.
 
 ```
 Parameters:
@@ -300,17 +369,21 @@ Parameters:
 - dark_mode: Emulate dark mode (default: false)
 - block_ads: Block ad domains (default: false)
 - cookies: Array of cookie objects [{name, value, domain?, ...}]
+- localStorage: Object of key-value pairs to inject into localStorage
+- sessionStorage: Object of key-value pairs to inject into sessionStorage
 ```
 
 #### `screenshot_to_file`
 
-Capture a screenshot and save it to disk. Supports cookie injection for authenticated pages.
+Capture a screenshot and save it to disk. Supports cookie and storage injection for authenticated pages.
 
 ```
 Parameters:
 - url (required): URL to capture
 - output_path (required): Path to save the screenshot
 - cookies: Array of cookie objects [{name, value, domain?, ...}]
+- localStorage: Object of key-value pairs to inject into localStorage
+- sessionStorage: Object of key-value pairs to inject into sessionStorage
 - (all other parameters same as screenshot)
 ```
 
