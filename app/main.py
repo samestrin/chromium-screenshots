@@ -54,6 +54,45 @@ def parse_cookie_string(cookie_string: Optional[str]) -> list[Cookie]:
     return cookies
 
 
+def parse_storage_string(storage_string: Optional[str]) -> dict[str, str]:
+    """Parse a storage string into a dictionary.
+
+    Format: "key=value;key2=value2" (semicolon-separated)
+
+    Keys can contain special characters like colons (e.g., wasp:sessionId).
+    Values can contain = signs.
+
+    Args:
+        storage_string: Semicolon-separated storage string, or None
+
+    Returns:
+        Dictionary of key-value pairs
+
+    Raises:
+        HTTPException: If storage format is invalid (missing =)
+    """
+    if not storage_string:
+        return {}
+
+    storage = {}
+    for storage_part in storage_string.split(";"):
+        storage_part = storage_part.strip()
+        if not storage_part:
+            continue
+
+        if "=" not in storage_part:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid storage format: expected 'key=value', got '{storage_part}'",
+            )
+
+        # Split on first = only (value may contain =)
+        key, value = storage_part.split("=", 1)
+        storage[key.strip()] = value.strip()
+
+    return storage
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle - initialize and cleanup browser."""
