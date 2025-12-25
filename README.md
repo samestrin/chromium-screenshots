@@ -7,6 +7,7 @@ A fast, containerized screenshot service using Chrome (Chromium via Playwright) 
 - **Chrome-based**: Uses Chromium for fast, reliable headless rendering
 - **Viewport & Full-page**: Capture visible area or entire scrollable page
 - **Multiple formats**: PNG and JPEG output with quality control
+- **Cookie injection**: Capture authenticated pages with session cookies
 - **Dark mode**: Emulate dark color scheme preference
 - **Ad blocking**: Optional blocking of common ad/tracking domains
 - **Wait controls**: Wait for page load, specific selectors, or custom delays
@@ -85,6 +86,9 @@ curl "http://localhost:8000/screenshot?url=https://github.com&width=1280&height=
 
 # JPEG with quality setting
 curl "http://localhost:8000/screenshot?url=https://example.com&format=jpeg&quality=85" -o screenshot.jpg
+
+# Screenshot with cookies for authenticated pages
+curl "http://localhost:8000/screenshot?url=https://dashboard.example.com&cookies=session=abc123;auth=token456" -o dashboard.png
 ```
 
 #### POST /screenshot (Full Control)
@@ -105,6 +109,18 @@ curl -X POST "http://localhost:8000/screenshot" \
     "block_ads": true
   }' \
   -o screenshot.png
+
+# With cookies for authenticated pages
+curl -X POST "http://localhost:8000/screenshot" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://dashboard.example.com",
+    "cookies": [
+      {"name": "session", "value": "abc123"},
+      {"name": "auth", "value": "token456", "httpOnly": true, "secure": true}
+    ]
+  }' \
+  -o authenticated.png
 ```
 
 #### POST /screenshot/json (Metadata Only)
@@ -154,6 +170,38 @@ curl http://localhost:8000/health
 | `delay` | int | 0 | Delay before capture in ms (0-10000) |
 | `dark_mode` | bool | false | Emulate dark color scheme |
 | `block_ads` | bool | false | Block common ad domains |
+| `cookies` | array/string | null | Cookies to inject (see below) |
+
+### Cookie Parameters
+
+For authenticated pages, you can inject session cookies using either format:
+
+**GET (query string format):**
+```
+cookies=name=value;name2=value2
+```
+
+**POST (JSON array format):**
+```json
+{
+  "cookies": [
+    {"name": "session", "value": "abc123"},
+    {"name": "auth", "value": "token456", "domain": "example.com", "httpOnly": true}
+  ]
+}
+```
+
+**Cookie object fields:**
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Cookie name |
+| `value` | Yes | Cookie value |
+| `domain` | No | Cookie domain (inferred from URL if not specified) |
+| `path` | No | Cookie path |
+| `httpOnly` | No | HTTP-only flag |
+| `secure` | No | Secure flag |
+| `sameSite` | No | "Strict", "Lax", or "None" |
+| `expires` | No | Unix timestamp for expiration |
 
 ### Response Headers
 
@@ -212,7 +260,7 @@ Or if running from source:
 
 #### `screenshot`
 
-Capture a screenshot and return base64-encoded image data.
+Capture a screenshot and return base64-encoded image data. Supports cookie injection for authenticated pages.
 
 ```
 Parameters:
@@ -227,16 +275,18 @@ Parameters:
 - delay: Delay before capture in ms (default: 0)
 - dark_mode: Emulate dark mode (default: false)
 - block_ads: Block ad domains (default: false)
+- cookies: Array of cookie objects [{name, value, domain?, ...}]
 ```
 
 #### `screenshot_to_file`
 
-Capture a screenshot and save it to disk.
+Capture a screenshot and save it to disk. Supports cookie injection for authenticated pages.
 
 ```
 Parameters:
 - url (required): URL to capture
 - output_path (required): Path to save the screenshot
+- cookies: Array of cookie objects [{name, value, domain?, ...}]
 - (all other parameters same as screenshot)
 ```
 
