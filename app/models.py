@@ -14,6 +14,15 @@ class SameSitePolicy(str, Enum):
     NONE = "None"
 
 
+class BoundingRect(BaseModel):
+    """Bounding rectangle for DOM element positioning."""
+
+    x: float = Field(..., description="X coordinate of the element's top-left corner")
+    y: float = Field(..., description="Y coordinate of the element's top-left corner")
+    width: float = Field(..., description="Width of the element in pixels")
+    height: float = Field(..., description="Height of the element in pixels")
+
+
 class DomExtractionOptions(BaseModel):
     """Options for DOM element extraction."""
 

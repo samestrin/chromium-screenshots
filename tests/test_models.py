@@ -255,6 +255,55 @@ class TestScreenshotRequestCookies:
             )
 
 
+class TestBoundingRectModel:
+    """Tests for BoundingRect Pydantic model."""
+
+    def test_bounding_rect_accepts_all_fields(self):
+        """BoundingRect accepts x, y, width, height as floats."""
+        from app.models import BoundingRect
+
+        rect = BoundingRect(x=10.5, y=20.3, width=100.0, height=50.7)
+        assert rect.x == 10.5
+        assert rect.y == 20.3
+        assert rect.width == 100.0
+        assert rect.height == 50.7
+
+    def test_bounding_rect_requires_all_fields(self):
+        """BoundingRect requires all four fields."""
+        from app.models import BoundingRect
+
+        with pytest.raises(ValidationError):
+            BoundingRect(x=10.0)  # type: ignore
+
+    def test_bounding_rect_accepts_integers(self):
+        """BoundingRect accepts integers (coerced to float)."""
+        from app.models import BoundingRect
+
+        rect = BoundingRect(x=10, y=20, width=100, height=50)
+        assert isinstance(rect.x, float)
+        assert isinstance(rect.y, float)
+
+    def test_bounding_rect_zero_values(self):
+        """BoundingRect accepts zero values."""
+        from app.models import BoundingRect
+
+        rect = BoundingRect(x=0, y=0, width=0, height=0)
+        assert rect.x == 0
+        assert rect.width == 0
+
+    def test_bounding_rect_has_field_descriptions(self):
+        """BoundingRect fields have descriptions for OpenAPI."""
+        from app.models import BoundingRect
+
+        schema = BoundingRect.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("x", {})
+        assert "description" in properties.get("y", {})
+        assert "description" in properties.get("width", {})
+        assert "description" in properties.get("height", {})
+
+
 class TestScreenshotRequestStorage:
     """Tests for ScreenshotRequest localStorage and sessionStorage fields."""
 
