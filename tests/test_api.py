@@ -460,3 +460,72 @@ class TestPostEndpointStorage:
             )
 
             assert response.status_code in [200, 500]
+
+
+class TestOpenAPISchemaExtractDom:
+    """Tests for OpenAPI schema extract_dom parameter."""
+
+    def test_openapi_schema_includes_extract_dom(self):
+        """OpenAPI schema includes extract_dom in ScreenshotRequest."""
+        from app.main import app
+
+        client = TestClient(app)
+        response = client.get("/openapi.json")
+        assert response.status_code == 200
+
+        openapi = response.json()
+        # Navigate to ScreenshotRequest schema
+        schemas = openapi.get("components", {}).get("schemas", {})
+        screenshot_request = schemas.get("ScreenshotRequest", {})
+        properties = screenshot_request.get("properties", {})
+
+        assert "extract_dom" in properties
+
+    def test_openapi_schema_extract_dom_references_dom_extraction_options(self):
+        """OpenAPI extract_dom references DomExtractionOptions schema."""
+        from app.main import app
+
+        client = TestClient(app)
+        response = client.get("/openapi.json")
+        openapi = response.json()
+
+        schemas = openapi.get("components", {}).get("schemas", {})
+        screenshot_request = schemas.get("ScreenshotRequest", {})
+        extract_dom_prop = screenshot_request.get("properties", {}).get("extract_dom", {})
+
+        # Should reference DomExtractionOptions via anyOf (Optional type)
+        # or via $ref
+        if "anyOf" in extract_dom_prop:
+            refs = [item.get("$ref", "") for item in extract_dom_prop["anyOf"]]
+            assert any("DomExtractionOptions" in ref for ref in refs)
+        elif "$ref" in extract_dom_prop:
+            assert "DomExtractionOptions" in extract_dom_prop["$ref"]
+
+    def test_openapi_schema_has_dom_extraction_options(self):
+        """OpenAPI schema includes DomExtractionOptions type."""
+        from app.main import app
+
+        client = TestClient(app)
+        response = client.get("/openapi.json")
+        openapi = response.json()
+
+        schemas = openapi.get("components", {}).get("schemas", {})
+        assert "DomExtractionOptions" in schemas
+
+    def test_openapi_dom_extraction_options_has_all_fields(self):
+        """DomExtractionOptions schema has all expected fields."""
+        from app.main import app
+
+        client = TestClient(app)
+        response = client.get("/openapi.json")
+        openapi = response.json()
+
+        schemas = openapi.get("components", {}).get("schemas", {})
+        dom_options = schemas.get("DomExtractionOptions", {})
+        properties = dom_options.get("properties", {})
+
+        assert "enabled" in properties
+        assert "selectors" in properties
+        assert "include_hidden" in properties
+        assert "min_text_length" in properties
+        assert "max_elements" in properties
