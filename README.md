@@ -24,6 +24,7 @@ If you try to screenshot your dashboard with a standard tool, you just get a pic
 | :--- | :--- | :--- |
 | **Auth Injection** | ❌ Cookies only | ✅ Cookies + LocalStorage + SessionStorage |
 | **AI Integration** | ❌ Manual API calls | ✅ Native MCP Server (Claude/Gemini) |
+| **DOM Extraction** | ❌ Screenshot only | ✅ Element positions + text for Vision AI |
 | **Rendering** | ⚠️ Often inconsistent | ✅ Pixel-perfect (Playwright) |
 | **SPA Support** | ❌ Fails on hydration | ✅ Waits for selectors/network idle |
 
@@ -81,7 +82,60 @@ curl "http://localhost:8000/screenshot?url=https://example.com&width=2560&height
 
 # 4. Check Health (for k8s probes)
 curl http://localhost:8000/health
+
+# 5. DOM-Enhanced Screenshot (extract text positions with image)
+# Returns screenshot + DOM element data for Vision AI correlation
+curl -X POST "http://localhost:8000/screenshot" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "extract_dom": {
+      "enabled": true,
+      "selectors": ["h1", "h2", "p", "a", "button"],
+      "max_elements": 100
+    }
+  }' -o result.json
 ```
+
+## 🔍 DOM Extraction (Vision AI Hybrid Mode)
+
+Extract DOM element positions and text alongside screenshots for accurate text identification. This enables hybrid workflows where Vision AI provides bounding boxes and DOM extraction provides ground-truth text.
+
+```python
+# Python example
+import httpx
+
+response = httpx.post("http://localhost:8000/screenshot", json={
+    "url": "https://example.com",
+    "extract_dom": {
+        "enabled": True,
+        "selectors": ["h1", "h2", "p", "a", "button", "label"],
+        "include_hidden": False,
+        "min_text_length": 1,
+        "max_elements": 500
+    }
+})
+
+result = response.json()
+screenshot_b64 = result["image"]
+dom_elements = result["dom_extraction"]["elements"]
+
+# Each element contains:
+# - selector: unique CSS selector
+# - xpath: full XPath
+# - tag_name: HTML tag
+# - text: element text content
+# - rect: {x, y, width, height} bounding box
+# - computed_style: {color, backgroundColor, fontSize, fontWeight}
+# - is_visible: visibility status
+# - z_index: stacking order
+```
+
+**Use Cases:**
+- Correlate Vision AI bounding boxes with actual text content
+- Build training datasets with pixel-perfect labels
+- Automate form filling by element position
+- Create accessibility audits with visual mapping
 
 ## 📚 Documentation
 
