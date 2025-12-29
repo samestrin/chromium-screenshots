@@ -4,6 +4,72 @@ import pytest
 from pydantic import ValidationError
 
 
+class TestDomExtractionOptionsModel:
+    """Tests for DomExtractionOptions Pydantic model."""
+
+    def test_dom_extraction_options_default_values(self):
+        """DomExtractionOptions has correct default values."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert options.enabled is False
+        assert isinstance(options.selectors, list)
+        assert "h1" in options.selectors
+        assert "p" in options.selectors
+        assert options.include_hidden is False
+        assert options.min_text_length == 1
+        assert options.max_elements == 500
+
+    def test_dom_extraction_options_enabled_true(self):
+        """DomExtractionOptions accepts enabled=True."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(enabled=True)
+        assert options.enabled is True
+
+    def test_dom_extraction_options_custom_selectors(self):
+        """DomExtractionOptions accepts custom selectors list."""
+        from app.models import DomExtractionOptions
+
+        custom_selectors = ["h1", "h2", "p", "span"]
+        options = DomExtractionOptions(selectors=custom_selectors)
+        assert options.selectors == custom_selectors
+
+    def test_dom_extraction_options_include_hidden(self):
+        """DomExtractionOptions accepts include_hidden=True."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(include_hidden=True)
+        assert options.include_hidden is True
+
+    def test_dom_extraction_options_min_text_length(self):
+        """DomExtractionOptions accepts custom min_text_length."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(min_text_length=3)
+        assert options.min_text_length == 3
+
+    def test_dom_extraction_options_max_elements(self):
+        """DomExtractionOptions accepts custom max_elements."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(max_elements=200)
+        assert options.max_elements == 200
+
+    def test_dom_extraction_options_has_field_descriptions(self):
+        """DomExtractionOptions fields have descriptions for OpenAPI."""
+        from app.models import DomExtractionOptions
+
+        schema = DomExtractionOptions.model_json_schema()
+        properties = schema.get("properties", {})
+
+        # Check that key fields have descriptions
+        assert "description" in properties.get("selectors", {})
+        assert "description" in properties.get("include_hidden", {})
+        assert "description" in properties.get("min_text_length", {})
+        assert "description" in properties.get("max_elements", {})
+
+
 class TestCookieModel:
     """Tests for Cookie Pydantic model."""
 
@@ -108,6 +174,46 @@ class TestCookieModel:
         assert cookie.expires == 1735689600
 
 
+class TestScreenshotRequestExtractDom:
+    """Tests for ScreenshotRequest extract_dom field."""
+
+    def test_screenshot_request_has_extract_dom_field(self):
+        """ScreenshotRequest has extract_dom optional field."""
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(url="https://example.com")
+        assert hasattr(request, "extract_dom")
+
+    def test_screenshot_request_extract_dom_defaults_to_none(self):
+        """ScreenshotRequest extract_dom defaults to None."""
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(url="https://example.com")
+        assert request.extract_dom is None
+
+    def test_screenshot_request_accepts_dom_extraction_options(self):
+        """ScreenshotRequest accepts DomExtractionOptions object."""
+        from app.models import DomExtractionOptions, ScreenshotRequest
+
+        options = DomExtractionOptions(enabled=True)
+        request = ScreenshotRequest(url="https://example.com", extract_dom=options)
+        assert request.extract_dom is not None
+        assert request.extract_dom.enabled is True
+
+    def test_screenshot_request_extract_dom_with_custom_selectors(self):
+        """ScreenshotRequest accepts DomExtractionOptions with custom selectors."""
+        from app.models import DomExtractionOptions, ScreenshotRequest
+
+        options = DomExtractionOptions(
+            enabled=True,
+            selectors=["h1", "p"],
+            max_elements=100
+        )
+        request = ScreenshotRequest(url="https://example.com", extract_dom=options)
+        assert request.extract_dom.selectors == ["h1", "p"]
+        assert request.extract_dom.max_elements == 100
+
+
 class TestScreenshotRequestCookies:
     """Tests for ScreenshotRequest cookies field."""
 
@@ -147,6 +253,303 @@ class TestScreenshotRequestCookies:
                 url="https://example.com",
                 cookies=[{"invalid": "cookie"}],  # type: ignore
             )
+
+
+class TestBoundingRectModel:
+    """Tests for BoundingRect Pydantic model."""
+
+    def test_bounding_rect_accepts_all_fields(self):
+        """BoundingRect accepts x, y, width, height as floats."""
+        from app.models import BoundingRect
+
+        rect = BoundingRect(x=10.5, y=20.3, width=100.0, height=50.7)
+        assert rect.x == 10.5
+        assert rect.y == 20.3
+        assert rect.width == 100.0
+        assert rect.height == 50.7
+
+    def test_bounding_rect_requires_all_fields(self):
+        """BoundingRect requires all four fields."""
+        from app.models import BoundingRect
+
+        with pytest.raises(ValidationError):
+            BoundingRect(x=10.0)  # type: ignore
+
+    def test_bounding_rect_accepts_integers(self):
+        """BoundingRect accepts integers (coerced to float)."""
+        from app.models import BoundingRect
+
+        rect = BoundingRect(x=10, y=20, width=100, height=50)
+        assert isinstance(rect.x, float)
+        assert isinstance(rect.y, float)
+
+    def test_bounding_rect_zero_values(self):
+        """BoundingRect accepts zero values."""
+        from app.models import BoundingRect
+
+        rect = BoundingRect(x=0, y=0, width=0, height=0)
+        assert rect.x == 0
+        assert rect.width == 0
+
+    def test_bounding_rect_has_field_descriptions(self):
+        """BoundingRect fields have descriptions for OpenAPI."""
+        from app.models import BoundingRect
+
+        schema = BoundingRect.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("x", {})
+        assert "description" in properties.get("y", {})
+        assert "description" in properties.get("width", {})
+        assert "description" in properties.get("height", {})
+
+
+class TestDomElementModel:
+    """Tests for DomElement Pydantic model."""
+
+    def test_dom_element_accepts_all_fields(self):
+        """DomElement accepts all 8 required fields."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=10, y=20, width=100, height=50)
+        element = DomElement(
+            selector="#main-title",
+            xpath="/html/body/div/h1",
+            tag_name="h1",
+            text="Welcome",
+            rect=rect,
+            computed_style={"color": "rgb(0, 0, 0)"},
+            is_visible=True,
+            z_index=0,
+        )
+        assert element.selector == "#main-title"
+        assert element.xpath == "/html/body/div/h1"
+        assert element.tag_name == "h1"
+        assert element.text == "Welcome"
+        assert element.rect.x == 10
+        assert element.is_visible is True
+        assert element.z_index == 0
+
+    def test_dom_element_requires_all_fields(self):
+        """DomElement requires all fields."""
+        from app.models import DomElement
+
+        with pytest.raises(ValidationError):
+            DomElement(selector="#id")  # type: ignore
+
+    def test_dom_element_rect_is_bounding_rect(self):
+        """DomElement rect field accepts BoundingRect."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=0, y=0, width=200, height=100)
+        element = DomElement(
+            selector=".content",
+            xpath="/html/body/p",
+            tag_name="p",
+            text="Some text",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=1,
+        )
+        assert isinstance(element.rect, BoundingRect)
+
+    def test_dom_element_computed_style_is_dict(self):
+        """DomElement computed_style accepts dict."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=0, y=0, width=50, height=20)
+        element = DomElement(
+            selector="span",
+            xpath="/html/body/span",
+            tag_name="span",
+            text="Test",
+            rect=rect,
+            computed_style={"font-size": "16px", "color": "blue"},
+            is_visible=True,
+            z_index=0,
+        )
+        assert element.computed_style["font-size"] == "16px"
+
+    def test_dom_element_empty_text(self):
+        """DomElement accepts empty text string."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=0, y=0, width=10, height=10)
+        element = DomElement(
+            selector="button",
+            xpath="/html/body/button",
+            tag_name="button",
+            text="",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=0,
+        )
+        assert element.text == ""
+
+    def test_dom_element_negative_z_index(self):
+        """DomElement accepts negative z-index values."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=0, y=0, width=10, height=10)
+        element = DomElement(
+            selector="div",
+            xpath="/html/body/div",
+            tag_name="div",
+            text="Background",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=-1,
+        )
+        assert element.z_index == -1
+
+    def test_dom_element_has_field_descriptions(self):
+        """DomElement fields have descriptions for OpenAPI."""
+        from app.models import DomElement
+
+        schema = DomElement.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("selector", {})
+        assert "description" in properties.get("xpath", {})
+        assert "description" in properties.get("tag_name", {})
+        assert "description" in properties.get("text", {})
+        assert "description" in properties.get("is_visible", {})
+        assert "description" in properties.get("z_index", {})
+
+
+class TestDomExtractionResultModel:
+    """Tests for DomExtractionResult Pydantic model."""
+
+    def test_dom_extraction_result_accepts_all_fields(self):
+        """DomExtractionResult accepts elements, viewport, extraction_time_ms, element_count."""
+        from app.models import BoundingRect, DomElement, DomExtractionResult
+
+        rect = BoundingRect(x=0, y=0, width=100, height=50)
+        element = DomElement(
+            selector="h1",
+            xpath="/html/body/h1",
+            tag_name="h1",
+            text="Title",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=0,
+        )
+        result = DomExtractionResult(
+            elements=[element],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=25.5,
+            element_count=1,
+        )
+        assert len(result.elements) == 1
+        assert result.viewport["width"] == 1920
+        assert result.extraction_time_ms == 25.5
+        assert result.element_count == 1
+
+    def test_dom_extraction_result_empty_elements(self):
+        """DomExtractionResult accepts empty elements list."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+        )
+        assert result.elements == []
+        assert result.element_count == 0
+
+    def test_dom_extraction_result_requires_all_fields(self):
+        """DomExtractionResult requires all fields."""
+        from app.models import DomExtractionResult
+
+        with pytest.raises(ValidationError):
+            DomExtractionResult(elements=[])  # type: ignore
+
+    def test_dom_extraction_result_viewport_dict(self):
+        """DomExtractionResult viewport is a dict with dimensions."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1280, "height": 720, "deviceScaleFactor": 2},
+            extraction_time_ms=5.0,
+            element_count=0,
+        )
+        assert result.viewport["width"] == 1280
+        assert result.viewport["deviceScaleFactor"] == 2
+
+    def test_dom_extraction_result_has_field_descriptions(self):
+        """DomExtractionResult fields have descriptions for OpenAPI."""
+        from app.models import DomExtractionResult
+
+        schema = DomExtractionResult.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("elements", {})
+        assert "description" in properties.get("viewport", {})
+        assert "description" in properties.get("extraction_time_ms", {})
+        assert "description" in properties.get("element_count", {})
+
+
+class TestScreenshotResponseDomExtraction:
+    """Tests for ScreenshotResponse dom_extraction field."""
+
+    def test_screenshot_response_has_dom_extraction_field(self):
+        """ScreenshotResponse has optional dom_extraction field."""
+        from app.models import ScreenshotResponse
+
+        response = ScreenshotResponse(
+            url="https://example.com",
+            screenshot_type="viewport",
+            format="png",
+            width=1920,
+            height=1080,
+            file_size_bytes=12345,
+            capture_time_ms=150.0,
+        )
+        assert hasattr(response, "dom_extraction")
+
+    def test_screenshot_response_dom_extraction_defaults_to_none(self):
+        """ScreenshotResponse dom_extraction defaults to None."""
+        from app.models import ScreenshotResponse
+
+        response = ScreenshotResponse(
+            url="https://example.com",
+            screenshot_type="viewport",
+            format="png",
+            width=1920,
+            height=1080,
+            file_size_bytes=12345,
+            capture_time_ms=150.0,
+        )
+        assert response.dom_extraction is None
+
+    def test_screenshot_response_accepts_dom_extraction_result(self):
+        """ScreenshotResponse accepts DomExtractionResult."""
+        from app.models import DomExtractionResult, ScreenshotResponse
+
+        dom_result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=20.0,
+            element_count=0,
+        )
+        response = ScreenshotResponse(
+            url="https://example.com",
+            screenshot_type="viewport",
+            format="png",
+            width=1920,
+            height=1080,
+            file_size_bytes=12345,
+            capture_time_ms=150.0,
+            dom_extraction=dom_result,
+        )
+        assert response.dom_extraction is not None
+        assert response.dom_extraction.element_count == 0
 
 
 class TestScreenshotRequestStorage:

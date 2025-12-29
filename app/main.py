@@ -141,7 +141,13 @@ async def take_screenshot(request: ScreenshotRequest):
     Use the `format` parameter to choose between PNG and JPEG output.
     """
     try:
-        screenshot_bytes, capture_time = await screenshot_service.capture(request)
+        result = await screenshot_service.capture(request)
+
+        # Handle both return types: (bytes, time) or (bytes, time, dom_result)
+        if len(result) == 3:
+            screenshot_bytes, capture_time, _ = result
+        else:
+            screenshot_bytes, capture_time = result
 
         media_type = (
             "image/png" if request.format == ImageFormat.PNG else "image/jpeg"
@@ -179,7 +185,39 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
     before downloading the image.
     """
     try:
-        screenshot_bytes, capture_time = await screenshot_service.capture(request)
+        result = await screenshot_service.capture(request)
+
+        # Handle both return types: (bytes, time) or (bytes, time, dom_result)
+        if len(result) == 3:
+            screenshot_bytes, capture_time, dom_result = result
+        else:
+            screenshot_bytes, capture_time = result
+            dom_result = None
+
+        # Convert raw dict to DomExtractionResult if present
+        dom_extraction = None
+        if dom_result:
+            from app.models import BoundingRect, DomElement, DomExtractionResult
+
+            elements = [
+                DomElement(
+                    selector=el["selector"],
+                    xpath=el["xpath"],
+                    tag_name=el["tag_name"],
+                    text=el["text"],
+                    rect=BoundingRect(**el["rect"]),
+                    computed_style=el["computed_style"],
+                    is_visible=el["is_visible"],
+                    z_index=el["z_index"],
+                )
+                for el in dom_result["elements"]
+            ]
+            dom_extraction = DomExtractionResult(
+                elements=elements,
+                viewport=dom_result["viewport"],
+                extraction_time_ms=dom_result["extraction_time_ms"],
+                element_count=dom_result["element_count"],
+            )
 
         return ScreenshotResponse(
             url=str(request.url),
@@ -189,6 +227,7 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
             height=request.height,
             file_size_bytes=len(screenshot_bytes),
             capture_time_ms=round(capture_time, 2),
+            dom_extraction=dom_extraction,
         )
     except Exception as e:
         raise HTTPException(

@@ -14,6 +14,74 @@ class SameSitePolicy(str, Enum):
     NONE = "None"
 
 
+class BoundingRect(BaseModel):
+    """Bounding rectangle for DOM element positioning."""
+
+    x: float = Field(..., description="X coordinate of the element's top-left corner")
+    y: float = Field(..., description="Y coordinate of the element's top-left corner")
+    width: float = Field(..., description="Width of the element in pixels")
+    height: float = Field(..., description="Height of the element in pixels")
+
+
+class DomElement(BaseModel):
+    """DOM element with position, text, and style information."""
+
+    selector: str = Field(..., description="Unique CSS selector for the element")
+    xpath: str = Field(..., description="Full XPath from document root")
+    tag_name: str = Field(..., description="HTML tag name (e.g., 'h1', 'p', 'div')")
+    text: str = Field(..., description="Text content of the element")
+    rect: BoundingRect = Field(..., description="Bounding rectangle for element position")
+    computed_style: dict[str, Any] = Field(
+        ..., description="Computed CSS styles (e.g., color, font-size)"
+    )
+    is_visible: bool = Field(..., description="Whether the element is visible")
+    z_index: int = Field(..., description="Stacking order (z-index) of the element")
+
+
+class DomExtractionResult(BaseModel):
+    """Result of DOM element extraction."""
+
+    elements: list[DomElement] = Field(
+        ..., description="List of extracted DOM elements"
+    )
+    viewport: dict[str, Any] = Field(
+        ..., description="Viewport dimensions (width, height, deviceScaleFactor)"
+    )
+    extraction_time_ms: float = Field(
+        ..., description="Time taken to extract DOM elements in milliseconds"
+    )
+    element_count: int = Field(..., description="Total number of elements extracted")
+
+
+class DomExtractionOptions(BaseModel):
+    """Options for DOM element extraction."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Whether to extract DOM elements alongside screenshot",
+    )
+    selectors: list[str] = Field(
+        default=[
+            "h1", "h2", "h3", "h4", "h5", "h6",
+            "p", "span", "a", "li", "button", "label",
+            "td", "th", "caption", "figcaption", "blockquote",
+        ],
+        description="CSS selectors for elements to extract",
+    )
+    include_hidden: bool = Field(
+        default=False,
+        description="Include elements with visibility:hidden or display:none",
+    )
+    min_text_length: int = Field(
+        default=1,
+        description="Minimum text length to include element",
+    )
+    max_elements: int = Field(
+        default=500,
+        description="Maximum number of elements to return",
+    )
+
+
 class Cookie(BaseModel):
     """Cookie model for browser cookie injection.
 
@@ -127,6 +195,10 @@ class ScreenshotRequest(BaseModel):
         "Values can be strings or objects (objects will be JSON-stringified). "
         "Example: {'temp-data': 'xyz'}",
     )
+    extract_dom: Optional[DomExtractionOptions] = Field(
+        default=None,
+        description="Options for extracting DOM element positions and text",
+    )
 
 
 class ScreenshotResponse(BaseModel):
@@ -140,6 +212,10 @@ class ScreenshotResponse(BaseModel):
     height: int
     file_size_bytes: int
     capture_time_ms: float
+    dom_extraction: Optional[DomExtractionResult] = Field(
+        default=None,
+        description="DOM extraction results, present when extract_dom was enabled",
+    )
 
 
 class ErrorResponse(BaseModel):

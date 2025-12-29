@@ -15,7 +15,13 @@ from mcp.types import TextContent, Tool
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.models import Cookie, ImageFormat, ScreenshotRequest, ScreenshotType
+from app.models import (
+    Cookie,
+    DomExtractionOptions,
+    ImageFormat,
+    ScreenshotRequest,
+    ScreenshotType,
+)
 from app.screenshot import ScreenshotService
 
 # Create server instance
@@ -151,6 +157,40 @@ async def list_tools() -> list[Tool]:
                             "Example: {'tempToken': 'xyz789'}"
                         ),
                     },
+                    "extract_dom": {
+                        "type": "object",
+                        "description": (
+                            "Extract DOM element positions and text alongside screenshot. "
+                            "Enables hybrid text identification with Vision AI."
+                        ),
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean",
+                                "default": False,
+                                "description": "Enable DOM extraction",
+                            },
+                            "selectors": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "CSS selectors for elements to extract",
+                            },
+                            "include_hidden": {
+                                "type": "boolean",
+                                "default": False,
+                                "description": "Include hidden elements",
+                            },
+                            "min_text_length": {
+                                "type": "integer",
+                                "default": 1,
+                                "description": "Minimum text content length",
+                            },
+                            "max_elements": {
+                                "type": "integer",
+                                "default": 500,
+                                "description": "Maximum elements to extract",
+                            },
+                        },
+                    },
                 },
                 "required": ["url"],
             },
@@ -271,6 +311,40 @@ async def list_tools() -> list[Tool]:
                             "Example: {'tempToken': 'xyz789'}"
                         ),
                     },
+                    "extract_dom": {
+                        "type": "object",
+                        "description": (
+                            "Extract DOM element positions and text alongside screenshot. "
+                            "Enables hybrid text identification with Vision AI."
+                        ),
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean",
+                                "default": False,
+                                "description": "Enable DOM extraction",
+                            },
+                            "selectors": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "CSS selectors for elements to extract",
+                            },
+                            "include_hidden": {
+                                "type": "boolean",
+                                "default": False,
+                                "description": "Include hidden elements",
+                            },
+                            "min_text_length": {
+                                "type": "integer",
+                                "default": 1,
+                                "description": "Minimum text content length",
+                            },
+                            "max_elements": {
+                                "type": "integer",
+                                "default": 500,
+                                "description": "Maximum elements to extract",
+                            },
+                        },
+                    },
                 },
                 "required": ["url", "output_path"],
             },
@@ -296,6 +370,13 @@ def _parse_cookies(cookie_dicts: list[dict] | None) -> list[Cookie] | None:
     return [Cookie(**cookie) for cookie in cookie_dicts]
 
 
+def _parse_extract_dom(extract_dom_dict: dict | None) -> DomExtractionOptions | None:
+    """Convert extract_dom dictionary to DomExtractionOptions model."""
+    if not extract_dom_dict:
+        return None
+    return DomExtractionOptions(**extract_dom_dict)
+
+
 async def handle_screenshot(arguments: dict) -> list[TextContent]:
     """Capture a screenshot and return base64-encoded image."""
     try:
@@ -316,25 +397,45 @@ async def handle_screenshot(arguments: dict) -> list[TextContent]:
             cookies=_parse_cookies(arguments.get("cookies")),
             localStorage=arguments.get("localStorage"),
             sessionStorage=arguments.get("sessionStorage"),
+            extract_dom=_parse_extract_dom(arguments.get("extract_dom")),
         )
 
-        screenshot_bytes, capture_time = await service.capture(request)
+        result = await service.capture(request)
+
+        # Handle both return types: (bytes, time) or (bytes, time, dom_result)
+        if len(result) == 3:
+            screenshot_bytes, capture_time, dom_result = result
+        else:
+            screenshot_bytes, capture_time = result
+            dom_result = None
+
         base64_image = base64.b64encode(screenshot_bytes).decode("utf-8")
 
-        return [
-            TextContent(
-                type="text",
-                text=(
-                    f"Screenshot captured successfully.\n"
-                    f"Format: {request.format.value}\n"
-                    f"Size: {len(screenshot_bytes):,} bytes\n"
-                    f"Capture time: {capture_time:.2f}ms\n"
-                    f"Dimensions: {request.width}x{request.height}\n"
-                    f"Type: {request.screenshot_type.value}\n\n"
-                    f"Base64 image data:\n{base64_image}"
-                ),
+        # Build response text
+        response_text = (
+            f"Screenshot captured successfully.\n"
+            f"Format: {request.format.value}\n"
+            f"Size: {len(screenshot_bytes):,} bytes\n"
+            f"Capture time: {capture_time:.2f}ms\n"
+            f"Dimensions: {request.width}x{request.height}\n"
+            f"Type: {request.screenshot_type.value}\n"
+        )
+
+        if dom_result:
+            response_text += (
+                f"\nDOM Extraction:\n"
+                f"  Elements: {dom_result['element_count']}\n"
+                f"  Extraction time: {dom_result['extraction_time_ms']:.2f}ms\n"
             )
-        ]
+
+        response_text += f"\nBase64 image data:\n{base64_image}"
+
+        # Include DOM data as JSON if extracted
+        if dom_result:
+            import json
+            response_text += f"\n\nDOM Elements (JSON):\n{json.dumps(dom_result, indent=2)}"
+
+        return [TextContent(type="text", text=response_text)]
 
     except Exception as e:
         return [TextContent(type="text", text=f"Screenshot failed: {str(e)}")]
@@ -371,9 +472,17 @@ async def handle_screenshot_to_file(arguments: dict) -> list[TextContent]:
             cookies=_parse_cookies(arguments.get("cookies")),
             localStorage=arguments.get("localStorage"),
             sessionStorage=arguments.get("sessionStorage"),
+            extract_dom=_parse_extract_dom(arguments.get("extract_dom")),
         )
 
-        screenshot_bytes, capture_time = await service.capture(request)
+        result = await service.capture(request)
+
+        # Handle both return types: (bytes, time) or (bytes, time, dom_result)
+        if len(result) == 3:
+            screenshot_bytes, capture_time, dom_result = result
+        else:
+            screenshot_bytes, capture_time = result
+            dom_result = None
 
         # Ensure parent directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -381,20 +490,27 @@ async def handle_screenshot_to_file(arguments: dict) -> list[TextContent]:
         # Write screenshot to file
         output_path.write_bytes(screenshot_bytes)
 
-        return [
-            TextContent(
-                type="text",
-                text=(
-                    f"Screenshot saved successfully.\n"
-                    f"Path: {output_path}\n"
-                    f"Format: {request.format.value}\n"
-                    f"Size: {len(screenshot_bytes):,} bytes\n"
-                    f"Capture time: {capture_time:.2f}ms\n"
-                    f"Dimensions: {request.width}x{request.height}\n"
-                    f"Type: {request.screenshot_type.value}"
-                ),
+        # Build response text
+        response_text = (
+            f"Screenshot saved successfully.\n"
+            f"Path: {output_path}\n"
+            f"Format: {request.format.value}\n"
+            f"Size: {len(screenshot_bytes):,} bytes\n"
+            f"Capture time: {capture_time:.2f}ms\n"
+            f"Dimensions: {request.width}x{request.height}\n"
+            f"Type: {request.screenshot_type.value}"
+        )
+
+        if dom_result:
+            import json
+            response_text += (
+                f"\n\nDOM Extraction:\n"
+                f"  Elements: {dom_result['element_count']}\n"
+                f"  Extraction time: {dom_result['extraction_time_ms']:.2f}ms\n"
+                f"\nDOM Elements (JSON):\n{json.dumps(dom_result, indent=2)}"
             )
-        ]
+
+        return [TextContent(type="text", text=response_text)]
 
     except Exception as e:
         return [TextContent(type="text", text=f"Screenshot failed: {str(e)}")]

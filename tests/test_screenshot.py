@@ -1,5 +1,6 @@
-"""Tests for screenshot service - domain extraction and cookie injection."""
+"""Tests for screenshot service - domain extraction, cookie injection, DOM extraction."""
 
+import pytest
 
 
 class TestDomainExtraction:
@@ -180,3 +181,217 @@ class TestCookieDomainInference:
 
         prepared = prepare_cookies_for_playwright(None, "https://example.com")
         assert prepared == []
+
+
+class TestConditionalDomExtraction:
+    """Tests for conditional DOM extraction in ScreenshotService.
+
+    AC: 04-01 - Conditional Extraction
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_extraction_when_extract_dom_is_none(self):
+        """No DOM extraction when extract_dom is None."""
+        from app.models import ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(url="https://example.com")
+            result = await service.capture(request)
+
+            # Result should be (bytes, time) without DOM extraction
+            assert isinstance(result, tuple)
+            assert len(result) == 2
+            screenshot_bytes, capture_time = result
+            assert isinstance(screenshot_bytes, bytes)
+            assert isinstance(capture_time, float)
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_no_extraction_when_enabled_is_false(self):
+        """No DOM extraction when extract_dom.enabled is False."""
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(enabled=False),
+            )
+            result = await service.capture(request)
+
+            # Result should be (bytes, time) without DOM extraction
+            assert isinstance(result, tuple)
+            assert len(result) == 2
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_extraction_runs_when_enabled(self):
+        """DOM extraction runs when extract_dom.enabled is True."""
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(enabled=True),
+            )
+            result = await service.capture(request)
+
+            # Result should include DOM extraction data
+            assert isinstance(result, tuple)
+            # When extraction is enabled, result is (bytes, time, dom_result)
+            assert len(result) == 3
+            screenshot_bytes, capture_time, dom_result = result
+            assert isinstance(screenshot_bytes, bytes)
+            assert isinstance(capture_time, float)
+            assert dom_result is not None
+            assert "elements" in dom_result
+            assert "viewport" in dom_result
+        finally:
+            await service.shutdown()
+
+
+class TestDomExtractionOptionsPassthrough:
+    """Tests for passing extraction options to JavaScript.
+
+    AC: 04-03 - Options Passthrough
+    """
+
+    @pytest.mark.asyncio
+    async def test_selectors_passed_to_extraction(self):
+        """Custom selectors are passed to extraction script."""
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(
+                    enabled=True,
+                    selectors=["h1"],  # Only h1 elements
+                ),
+            )
+            result = await service.capture(request)
+
+            assert len(result) == 3
+            _, _, dom_result = result
+
+            # All elements should be h1
+            for el in dom_result["elements"]:
+                assert el["tag_name"].lower() == "h1"
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_max_elements_limit_respected(self):
+        """maxElements limit is passed and respected."""
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(
+                    enabled=True,
+                    selectors=["h1", "h2", "p", "span", "a", "div"],
+                    max_elements=5,
+                ),
+            )
+            result = await service.capture(request)
+
+            assert len(result) == 3
+            _, _, dom_result = result
+            assert len(dom_result["elements"]) <= 5
+        finally:
+            await service.shutdown()
+
+
+class TestDomExtractionResultConversion:
+    """Tests for converting JS results to Pydantic models.
+
+    AC: 04-04 - Result Conversion
+    """
+
+    @pytest.mark.asyncio
+    async def test_result_has_all_fields(self):
+        """Extraction result has all required fields."""
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(enabled=True),
+            )
+            result = await service.capture(request)
+
+            assert len(result) == 3
+            _, _, dom_result = result
+
+            # Check result structure
+            assert "elements" in dom_result
+            assert "viewport" in dom_result
+            assert "extraction_time_ms" in dom_result
+            assert "element_count" in dom_result
+
+            # Check viewport structure
+            assert "width" in dom_result["viewport"]
+            assert "height" in dom_result["viewport"]
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_element_has_required_fields(self):
+        """Each element has all required fields."""
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(
+                    enabled=True,
+                    selectors=["h1"],
+                ),
+            )
+            result = await service.capture(request)
+
+            assert len(result) == 3
+            _, _, dom_result = result
+
+            if dom_result["elements"]:
+                element = dom_result["elements"][0]
+                assert "selector" in element
+                assert "xpath" in element
+                assert "tag_name" in element
+                assert "text" in element
+                assert "rect" in element
+                assert "computed_style" in element
+                assert "is_visible" in element
+                assert "z_index" in element
+        finally:
+            await service.shutdown()
