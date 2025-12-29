@@ -4,6 +4,72 @@ import pytest
 from pydantic import ValidationError
 
 
+class TestDomExtractionOptionsModel:
+    """Tests for DomExtractionOptions Pydantic model."""
+
+    def test_dom_extraction_options_default_values(self):
+        """DomExtractionOptions has correct default values."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert options.enabled is False
+        assert isinstance(options.selectors, list)
+        assert "h1" in options.selectors
+        assert "p" in options.selectors
+        assert options.include_hidden is False
+        assert options.min_text_length == 1
+        assert options.max_elements == 500
+
+    def test_dom_extraction_options_enabled_true(self):
+        """DomExtractionOptions accepts enabled=True."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(enabled=True)
+        assert options.enabled is True
+
+    def test_dom_extraction_options_custom_selectors(self):
+        """DomExtractionOptions accepts custom selectors list."""
+        from app.models import DomExtractionOptions
+
+        custom_selectors = ["h1", "h2", "p", "span"]
+        options = DomExtractionOptions(selectors=custom_selectors)
+        assert options.selectors == custom_selectors
+
+    def test_dom_extraction_options_include_hidden(self):
+        """DomExtractionOptions accepts include_hidden=True."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(include_hidden=True)
+        assert options.include_hidden is True
+
+    def test_dom_extraction_options_min_text_length(self):
+        """DomExtractionOptions accepts custom min_text_length."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(min_text_length=3)
+        assert options.min_text_length == 3
+
+    def test_dom_extraction_options_max_elements(self):
+        """DomExtractionOptions accepts custom max_elements."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(max_elements=200)
+        assert options.max_elements == 200
+
+    def test_dom_extraction_options_has_field_descriptions(self):
+        """DomExtractionOptions fields have descriptions for OpenAPI."""
+        from app.models import DomExtractionOptions
+
+        schema = DomExtractionOptions.model_json_schema()
+        properties = schema.get("properties", {})
+        
+        # Check that key fields have descriptions
+        assert "description" in properties.get("selectors", {})
+        assert "description" in properties.get("include_hidden", {})
+        assert "description" in properties.get("min_text_length", {})
+        assert "description" in properties.get("max_elements", {})
+
+
 class TestCookieModel:
     """Tests for Cookie Pydantic model."""
 

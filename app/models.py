@@ -14,6 +14,35 @@ class SameSitePolicy(str, Enum):
     NONE = "None"
 
 
+class DomExtractionOptions(BaseModel):
+    """Options for DOM element extraction."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Whether to extract DOM elements alongside screenshot",
+    )
+    selectors: list[str] = Field(
+        default=[
+            "h1", "h2", "h3", "h4", "h5", "h6",
+            "p", "span", "a", "li", "button", "label",
+            "td", "th", "caption", "figcaption", "blockquote",
+        ],
+        description="CSS selectors for elements to extract",
+    )
+    include_hidden: bool = Field(
+        default=False,
+        description="Include elements with visibility:hidden or display:none",
+    )
+    min_text_length: int = Field(
+        default=1,
+        description="Minimum text length to include element",
+    )
+    max_elements: int = Field(
+        default=500,
+        description="Maximum number of elements to return",
+    )
+
+
 class Cookie(BaseModel):
     """Cookie model for browser cookie injection.
 
