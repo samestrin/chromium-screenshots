@@ -23,6 +23,21 @@ class BoundingRect(BaseModel):
     height: float = Field(..., description="Height of the element in pixels")
 
 
+class DomElement(BaseModel):
+    """DOM element with position, text, and style information."""
+
+    selector: str = Field(..., description="Unique CSS selector for the element")
+    xpath: str = Field(..., description="Full XPath from document root")
+    tag_name: str = Field(..., description="HTML tag name (e.g., 'h1', 'p', 'div')")
+    text: str = Field(..., description="Text content of the element")
+    rect: BoundingRect = Field(..., description="Bounding rectangle for element position")
+    computed_style: dict[str, Any] = Field(
+        ..., description="Computed CSS styles (e.g., color, font-size)"
+    )
+    is_visible: bool = Field(..., description="Whether the element is visible")
+    z_index: int = Field(..., description="Stacking order (z-index) of the element")
+
+
 class DomExtractionOptions(BaseModel):
     """Options for DOM element extraction."""
 

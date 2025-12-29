@@ -304,6 +304,122 @@ class TestBoundingRectModel:
         assert "description" in properties.get("height", {})
 
 
+class TestDomElementModel:
+    """Tests for DomElement Pydantic model."""
+
+    def test_dom_element_accepts_all_fields(self):
+        """DomElement accepts all 8 required fields."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=10, y=20, width=100, height=50)
+        element = DomElement(
+            selector="#main-title",
+            xpath="/html/body/div/h1",
+            tag_name="h1",
+            text="Welcome",
+            rect=rect,
+            computed_style={"color": "rgb(0, 0, 0)"},
+            is_visible=True,
+            z_index=0,
+        )
+        assert element.selector == "#main-title"
+        assert element.xpath == "/html/body/div/h1"
+        assert element.tag_name == "h1"
+        assert element.text == "Welcome"
+        assert element.rect.x == 10
+        assert element.is_visible is True
+        assert element.z_index == 0
+
+    def test_dom_element_requires_all_fields(self):
+        """DomElement requires all fields."""
+        from app.models import DomElement
+
+        with pytest.raises(ValidationError):
+            DomElement(selector="#id")  # type: ignore
+
+    def test_dom_element_rect_is_bounding_rect(self):
+        """DomElement rect field accepts BoundingRect."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=0, y=0, width=200, height=100)
+        element = DomElement(
+            selector=".content",
+            xpath="/html/body/p",
+            tag_name="p",
+            text="Some text",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=1,
+        )
+        assert isinstance(element.rect, BoundingRect)
+
+    def test_dom_element_computed_style_is_dict(self):
+        """DomElement computed_style accepts dict."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=0, y=0, width=50, height=20)
+        element = DomElement(
+            selector="span",
+            xpath="/html/body/span",
+            tag_name="span",
+            text="Test",
+            rect=rect,
+            computed_style={"font-size": "16px", "color": "blue"},
+            is_visible=True,
+            z_index=0,
+        )
+        assert element.computed_style["font-size"] == "16px"
+
+    def test_dom_element_empty_text(self):
+        """DomElement accepts empty text string."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=0, y=0, width=10, height=10)
+        element = DomElement(
+            selector="button",
+            xpath="/html/body/button",
+            tag_name="button",
+            text="",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=0,
+        )
+        assert element.text == ""
+
+    def test_dom_element_negative_z_index(self):
+        """DomElement accepts negative z-index values."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=0, y=0, width=10, height=10)
+        element = DomElement(
+            selector="div",
+            xpath="/html/body/div",
+            tag_name="div",
+            text="Background",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=-1,
+        )
+        assert element.z_index == -1
+
+    def test_dom_element_has_field_descriptions(self):
+        """DomElement fields have descriptions for OpenAPI."""
+        from app.models import DomElement
+
+        schema = DomElement.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("selector", {})
+        assert "description" in properties.get("xpath", {})
+        assert "description" in properties.get("tag_name", {})
+        assert "description" in properties.get("text", {})
+        assert "description" in properties.get("is_visible", {})
+        assert "description" in properties.get("z_index", {})
+
+
 class TestScreenshotRequestStorage:
     """Tests for ScreenshotRequest localStorage and sessionStorage fields."""
 
