@@ -174,6 +174,46 @@ class TestCookieModel:
         assert cookie.expires == 1735689600
 
 
+class TestScreenshotRequestExtractDom:
+    """Tests for ScreenshotRequest extract_dom field."""
+
+    def test_screenshot_request_has_extract_dom_field(self):
+        """ScreenshotRequest has extract_dom optional field."""
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(url="https://example.com")
+        assert hasattr(request, "extract_dom")
+
+    def test_screenshot_request_extract_dom_defaults_to_none(self):
+        """ScreenshotRequest extract_dom defaults to None."""
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(url="https://example.com")
+        assert request.extract_dom is None
+
+    def test_screenshot_request_accepts_dom_extraction_options(self):
+        """ScreenshotRequest accepts DomExtractionOptions object."""
+        from app.models import DomExtractionOptions, ScreenshotRequest
+
+        options = DomExtractionOptions(enabled=True)
+        request = ScreenshotRequest(url="https://example.com", extract_dom=options)
+        assert request.extract_dom is not None
+        assert request.extract_dom.enabled is True
+
+    def test_screenshot_request_extract_dom_with_custom_selectors(self):
+        """ScreenshotRequest accepts DomExtractionOptions with custom selectors."""
+        from app.models import DomExtractionOptions, ScreenshotRequest
+
+        options = DomExtractionOptions(
+            enabled=True,
+            selectors=["h1", "p"],
+            max_elements=100
+        )
+        request = ScreenshotRequest(url="https://example.com", extract_dom=options)
+        assert request.extract_dom.selectors == ["h1", "p"]
+        assert request.extract_dom.max_elements == 100
+
+
 class TestScreenshotRequestCookies:
     """Tests for ScreenshotRequest cookies field."""
 

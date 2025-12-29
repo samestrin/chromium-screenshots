@@ -156,6 +156,10 @@ class ScreenshotRequest(BaseModel):
         "Values can be strings or objects (objects will be JSON-stringified). "
         "Example: {'temp-data': 'xyz'}",
     )
+    extract_dom: Optional[DomExtractionOptions] = Field(
+        default=None,
+        description="Options for extracting DOM element positions and text alongside the screenshot",
+    )
 
 
 class ScreenshotResponse(BaseModel):
