@@ -197,7 +197,7 @@ class ScreenshotRequest(BaseModel):
     )
     extract_dom: Optional[DomExtractionOptions] = Field(
         default=None,
-        description="Options for extracting DOM element positions and text alongside the screenshot",
+        description="Options for extracting DOM element positions and text",
     )
 
 
