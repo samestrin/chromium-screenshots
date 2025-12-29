@@ -219,3 +219,178 @@ class TestMCPHandlersCookiePassthrough:
             assert cookie.httpOnly is True
             assert cookie.secure is True
             assert cookie.sameSite == "Strict"
+
+
+class TestMCPQualityIntegration:
+    """Tests for MCP quality assessment integration."""
+
+    @pytest.mark.asyncio
+    async def test_screenshot_handler_includes_quality_in_response(self):
+        """screenshot handler includes quality in text response."""
+        from unittest.mock import AsyncMock, patch, MagicMock
+        from screenshot_mcp.server import handle_screenshot
+
+        mock_service = MagicMock()
+        mock_service.capture = AsyncMock(return_value=(
+            b"fake_image",
+            100.0,
+            {
+                "elements": [
+                    {
+                        "selector": f"#el-{i}",
+                        "xpath": f"/html/body/p[{i}]",
+                        "tag_name": "p",
+                        "text": f"Text content {i}" * 5,
+                        "rect": {"x": 0, "y": i * 20, "width": 100, "height": 20},
+                        "computed_style": {},
+                        "is_visible": True,
+                        "z_index": 0,
+                    }
+                    for i in range(10)
+                ],
+                "viewport": {"width": 1920, "height": 1080},
+                "extraction_time_ms": 25.0,
+                "element_count": 10,
+            },
+        ))
+
+        with patch("screenshot_mcp.server.get_screenshot_service", return_value=mock_service):
+            result = await handle_screenshot({
+                "url": "https://example.com",
+                "extract_dom": {"enabled": True},
+            })
+
+            assert len(result) == 1
+            response_text = result[0].text
+
+            # Should include quality in text response
+            assert "Quality:" in response_text
+            assert "low" in response_text.lower()
+
+    @pytest.mark.asyncio
+    async def test_screenshot_handler_includes_quality_warnings(self):
+        """screenshot handler includes quality warnings when present."""
+        from unittest.mock import AsyncMock, patch, MagicMock
+        from screenshot_mcp.server import handle_screenshot
+
+        mock_service = MagicMock()
+        mock_service.capture = AsyncMock(return_value=(
+            b"fake_image",
+            100.0,
+            {
+                "elements": [],  # Empty -> EMPTY quality with warnings
+                "viewport": {"width": 1920, "height": 1080},
+                "extraction_time_ms": 5.0,
+                "element_count": 0,
+            },
+        ))
+
+        with patch("screenshot_mcp.server.get_screenshot_service", return_value=mock_service):
+            result = await handle_screenshot({
+                "url": "https://example.com",
+                "extract_dom": {"enabled": True},
+            })
+
+            response_text = result[0].text
+
+            # Should include quality and warnings
+            assert "Quality: empty" in response_text
+            assert "NO_ELEMENTS" in response_text
+
+    @pytest.mark.asyncio
+    async def test_screenshot_handler_quality_in_json_output(self):
+        """screenshot handler includes quality in JSON DOM output."""
+        from unittest.mock import AsyncMock, patch, MagicMock
+        from screenshot_mcp.server import handle_screenshot
+        import json
+
+        mock_service = MagicMock()
+        mock_service.capture = AsyncMock(return_value=(
+            b"fake_image",
+            100.0,
+            {
+                "elements": [
+                    {
+                        "selector": f"#el-{i}",
+                        "xpath": f"/html/body/p[{i}]",
+                        "tag_name": "p",
+                        "text": f"Text {i}",
+                        "rect": {"x": 0, "y": i * 20, "width": 100, "height": 20},
+                        "computed_style": {},
+                        "is_visible": True,
+                        "z_index": 0,
+                    }
+                    for i in range(5)  # 5 elements -> LOW quality
+                ],
+                "viewport": {"width": 1920, "height": 1080},
+                "extraction_time_ms": 15.0,
+                "element_count": 5,
+            },
+        ))
+
+        with patch("screenshot_mcp.server.get_screenshot_service", return_value=mock_service):
+            result = await handle_screenshot({
+                "url": "https://example.com",
+                "extract_dom": {"enabled": True},
+            })
+
+            response_text = result[0].text
+
+            # Find the JSON part and parse it
+            json_start = response_text.find("DOM Elements (JSON):\n") + len("DOM Elements (JSON):\n")
+            json_str = response_text[json_start:]
+            dom_data = json.loads(json_str)
+
+            # Quality and warnings should be in JSON
+            assert "quality" in dom_data
+            assert dom_data["quality"] == "low"
+            assert "warnings" in dom_data
+            assert isinstance(dom_data["warnings"], list)
+
+    @pytest.mark.asyncio
+    async def test_screenshot_to_file_handler_includes_quality(self):
+        """screenshot_to_file handler includes quality in response."""
+        from unittest.mock import AsyncMock, patch, MagicMock
+        from screenshot_mcp.server import handle_screenshot_to_file
+        import tempfile
+        import os
+
+        mock_service = MagicMock()
+        mock_service.capture = AsyncMock(return_value=(
+            b"fake_image",
+            100.0,
+            {
+                "elements": [
+                    {
+                        "selector": f"#el-{i}",
+                        "xpath": f"/html/body/p[{i}]",
+                        "tag_name": "p",
+                        "text": f"Text {i}" * 10,
+                        "rect": {"x": 0, "y": i * 20, "width": 100, "height": 20},
+                        "computed_style": {},
+                        "is_visible": True,
+                        "z_index": 0,
+                    }
+                    for i in range(15)  # 15 elements -> LOW quality
+                ],
+                "viewport": {"width": 1920, "height": 1080},
+                "extraction_time_ms": 20.0,
+                "element_count": 15,
+            },
+        ))
+
+        with patch("screenshot_mcp.server.get_screenshot_service", return_value=mock_service):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                output_path = os.path.join(tmpdir, "test.png")
+
+                result = await handle_screenshot_to_file({
+                    "url": "https://example.com",
+                    "output_path": output_path,
+                    "extract_dom": {"enabled": True},
+                })
+
+                response_text = result[0].text
+
+                # Should include quality in response
+                assert "Quality:" in response_text
+                assert "low" in response_text.lower()
