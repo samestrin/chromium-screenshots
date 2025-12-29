@@ -29,8 +29,9 @@ class TestExtractionQualityEnum:
 
     def test_extraction_quality_is_str_enum(self):
         """ExtractionQuality inherits from str for JSON serialization."""
-        from app.models import ExtractionQuality
         from enum import Enum
+
+        from app.models import ExtractionQuality
 
         # Should inherit from both str and Enum
         assert issubclass(ExtractionQuality, str)
@@ -41,10 +42,10 @@ class TestExtractionQualityEnum:
 
     def test_extraction_quality_json_serialization(self):
         """ExtractionQuality serializes correctly in Pydantic model."""
-        from app.models import ExtractionQuality
-
         # Create a simple test to verify JSON serialization
         import json
+
+        from app.models import ExtractionQuality
         quality = ExtractionQuality.GOOD
         # str(Enum) with str base should work directly
         assert json.dumps({"quality": quality}) == '{"quality": "good"}'
@@ -91,10 +92,13 @@ class TestQualityWarningModel:
 
     def test_quality_warning_json_deserialization(self):
         """QualityWarning deserializes from JSON correctly."""
-        from app.models import QualityWarning
-        import json
 
-        json_str = '{"code": "many_hidden", "message": "Many hidden elements", "suggestion": "Review visibility"}'
+        from app.models import QualityWarning
+
+        json_str = (
+            '{"code": "many_hidden", "message": "Many hidden elements", '
+            '"suggestion": "Review visibility"}'
+        )
         warning = QualityWarning.model_validate_json(json_str)
         assert warning.code == "many_hidden"
         assert warning.message == "Many hidden elements"
@@ -754,7 +758,10 @@ class TestDomExtractionResultQuality:
         """DomExtractionResult deserializes legacy JSON (without quality)."""
         from app.models import DomExtractionResult
 
-        legacy_json = '{"elements": [], "viewport": {"width": 1920, "height": 1080}, "extraction_time_ms": 10.0, "element_count": 0}'
+        legacy_json = (
+            '{"elements": [], "viewport": {"width": 1920, "height": 1080}, '
+            '"extraction_time_ms": 10.0, "element_count": 0}'
+        )
         result = DomExtractionResult.model_validate_json(legacy_json)
         assert result.quality is None
         assert result.warnings == []

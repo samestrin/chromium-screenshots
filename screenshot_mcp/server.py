@@ -535,9 +535,10 @@ async def handle_screenshot_to_file(arguments: dict) -> list[TextContent]:
 
         if dom_result:
             # Assess extraction quality
+            import json
+
             from app.models import BoundingRect, DomElement
             from app.quality_assessment import assess_extraction_quality
-            import json
 
             elements = [
                 DomElement(

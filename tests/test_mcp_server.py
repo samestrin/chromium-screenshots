@@ -227,7 +227,8 @@ class TestMCPQualityIntegration:
     @pytest.mark.asyncio
     async def test_screenshot_handler_includes_quality_in_response(self):
         """screenshot handler includes quality in text response."""
-        from unittest.mock import AsyncMock, patch, MagicMock
+        from unittest.mock import AsyncMock, MagicMock, patch
+
         from screenshot_mcp.server import handle_screenshot
 
         mock_service = MagicMock()
@@ -270,7 +271,8 @@ class TestMCPQualityIntegration:
     @pytest.mark.asyncio
     async def test_screenshot_handler_includes_quality_warnings(self):
         """screenshot handler includes quality warnings when present."""
-        from unittest.mock import AsyncMock, patch, MagicMock
+        from unittest.mock import AsyncMock, MagicMock, patch
+
         from screenshot_mcp.server import handle_screenshot
 
         mock_service = MagicMock()
@@ -300,9 +302,10 @@ class TestMCPQualityIntegration:
     @pytest.mark.asyncio
     async def test_screenshot_handler_quality_in_json_output(self):
         """screenshot handler includes quality in JSON DOM output."""
-        from unittest.mock import AsyncMock, patch, MagicMock
-        from screenshot_mcp.server import handle_screenshot
         import json
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from screenshot_mcp.server import handle_screenshot
 
         mock_service = MagicMock()
         mock_service.capture = AsyncMock(return_value=(
@@ -337,7 +340,8 @@ class TestMCPQualityIntegration:
             response_text = result[0].text
 
             # Find the JSON part and parse it
-            json_start = response_text.find("DOM Elements (JSON):\n") + len("DOM Elements (JSON):\n")
+            marker = "DOM Elements (JSON):\n"
+            json_start = response_text.find(marker) + len(marker)
             json_str = response_text[json_start:]
             dom_data = json.loads(json_str)
 
@@ -350,10 +354,11 @@ class TestMCPQualityIntegration:
     @pytest.mark.asyncio
     async def test_screenshot_to_file_handler_includes_quality(self):
         """screenshot_to_file handler includes quality in response."""
-        from unittest.mock import AsyncMock, patch, MagicMock
-        from screenshot_mcp.server import handle_screenshot_to_file
-        import tempfile
         import os
+        import tempfile
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from screenshot_mcp.server import handle_screenshot_to_file
 
         mock_service = MagicMock()
         mock_service.capture = AsyncMock(return_value=(

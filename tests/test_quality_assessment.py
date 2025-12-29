@@ -1,6 +1,5 @@
 """Tests for DOM extraction quality assessment."""
 
-import pytest
 from app.models import BoundingRect, DomElement, ExtractionQuality, QualityWarning
 
 
@@ -582,6 +581,7 @@ class TestPerformanceBenchmarks:
     def test_performance_100_elements_under_5ms(self):
         """assess_extraction_quality completes in <5ms for 100 elements."""
         import time
+
         from app.quality_assessment import assess_extraction_quality
 
         elements = create_diverse_elements(100)
@@ -601,6 +601,7 @@ class TestPerformanceBenchmarks:
     def test_performance_50_elements_under_2ms(self):
         """assess_extraction_quality completes in <2ms for 50 elements."""
         import time
+
         from app.quality_assessment import assess_extraction_quality
 
         elements = create_diverse_elements(50)
@@ -619,6 +620,7 @@ class TestPerformanceBenchmarks:
     def test_performance_20_elements_under_1ms(self):
         """assess_extraction_quality completes in <1ms for 20 elements."""
         import time
+
         from app.quality_assessment import assess_extraction_quality
 
         elements = create_diverse_elements(20)
@@ -637,6 +639,7 @@ class TestPerformanceBenchmarks:
     def test_performance_linear_scaling(self):
         """Performance scales linearly (O(n) complexity)."""
         import time
+
         from app.quality_assessment import assess_extraction_quality
 
         # Measure time for different element counts
@@ -667,6 +670,7 @@ class TestPerformanceBenchmarks:
     def test_performance_empty_list_fast(self):
         """Empty list should be extremely fast."""
         import time
+
         from app.quality_assessment import assess_extraction_quality
 
         iterations = 100
@@ -686,7 +690,7 @@ class TestQualityAssessmentResult:
 
     def test_result_has_quality_field(self):
         """Result has quality field with ExtractionQuality enum."""
-        from app.quality_assessment import assess_extraction_quality, QualityAssessmentResult
+        from app.quality_assessment import assess_extraction_quality
 
         result = assess_extraction_quality([])
         assert hasattr(result, "quality")

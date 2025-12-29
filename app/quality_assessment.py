@@ -118,7 +118,8 @@ def assess_extraction_quality(
     if tag_diversity < THRESHOLD_TAG_DIVERSITY and element_count >= THRESHOLD_GOOD:
         warnings.append(QualityWarning(
             code="LOW_TAG_DIVERSITY",
-            message=f"Only {tag_diversity} unique tag type(s) found among {element_count} elements.",
+            message=f"Only {tag_diversity} unique tag type(s) found "
+            f"among {element_count} elements.",
             suggestion=(
                 "Consider expanding extraction selectors to capture a broader "
                 "variety of content (headings, paragraphs, links, etc.)."
@@ -143,7 +144,8 @@ def assess_extraction_quality(
         if hidden_ratio > THRESHOLD_HIDDEN_RATIO:
             warnings.append(QualityWarning(
                 code="MANY_HIDDEN",
-                message=f"{int(hidden_ratio * 100)}% of elements are hidden ({hidden_count}/{element_count}).",
+                message=f"{int(hidden_ratio * 100)}% of elements are hidden "
+                f"({hidden_count}/{element_count}).",
                 suggestion=(
                     "Many hidden elements may indicate the page hasn't rendered fully "
                     "or content is behind user interaction. Consider adding wait time "
@@ -157,7 +159,8 @@ def assess_extraction_quality(
         if avg_text_length < THRESHOLD_MIN_TEXT_LENGTH:
             warnings.append(QualityWarning(
                 code="MINIMAL_TEXT",
-                message=f"Average text length is only {avg_text_length:.1f} characters per element.",
+                message=f"Average text length is only "
+                f"{avg_text_length:.1f} characters per element.",
                 suggestion=(
                     "Elements have minimal text content. This may indicate extraction "
                     "of UI elements rather than content, or the page may have limited text."
