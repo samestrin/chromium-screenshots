@@ -664,6 +664,193 @@ class TestDomExtractionResultModel:
         assert "description" in properties.get("element_count", {})
 
 
+class TestDomExtractionResultQuality:
+    """Tests for DomExtractionResult quality extension fields."""
+
+    def test_dom_extraction_result_with_quality_and_warnings(self):
+        """DomExtractionResult accepts quality and warnings fields."""
+        from app.models import DomExtractionResult, ExtractionQuality, QualityWarning
+
+        warning = QualityWarning(
+            code="low_element_count",
+            message="Only 3 elements extracted",
+            suggestion="Check if page fully loaded"
+        )
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=3,
+            quality=ExtractionQuality.POOR,
+            warnings=[warning],
+        )
+        assert result.quality == ExtractionQuality.POOR
+        assert len(result.warnings) == 1
+        assert result.warnings[0].code == "low_element_count"
+
+    def test_dom_extraction_result_backward_compatibility(self):
+        """DomExtractionResult works without quality/warnings (backward compat)."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+        )
+        # New fields should have defaults
+        assert result.quality is None
+        assert result.warnings == []
+
+    def test_dom_extraction_result_quality_defaults_to_none(self):
+        """DomExtractionResult quality defaults to None."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+        )
+        assert result.quality is None
+
+    def test_dom_extraction_result_warnings_defaults_to_empty_list(self):
+        """DomExtractionResult warnings defaults to empty list."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+        )
+        assert result.warnings == []
+        assert isinstance(result.warnings, list)
+
+    def test_dom_extraction_result_json_round_trip_with_quality(self):
+        """DomExtractionResult with quality serializes and deserializes correctly."""
+        from app.models import DomExtractionResult, ExtractionQuality, QualityWarning
+
+        warning = QualityWarning(
+            code="no_headings",
+            message="No heading elements found",
+            suggestion="Add h1-h6 elements"
+        )
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+            quality=ExtractionQuality.GOOD,
+            warnings=[warning],
+        )
+        json_str = result.model_dump_json()
+        restored = DomExtractionResult.model_validate_json(json_str)
+        assert restored.quality == ExtractionQuality.GOOD
+        assert len(restored.warnings) == 1
+        assert restored.warnings[0].code == "no_headings"
+
+    def test_dom_extraction_result_json_round_trip_legacy_format(self):
+        """DomExtractionResult deserializes legacy JSON (without quality)."""
+        from app.models import DomExtractionResult
+
+        legacy_json = '{"elements": [], "viewport": {"width": 1920, "height": 1080}, "extraction_time_ms": 10.0, "element_count": 0}'
+        result = DomExtractionResult.model_validate_json(legacy_json)
+        assert result.quality is None
+        assert result.warnings == []
+
+    def test_dom_extraction_result_multiple_warnings(self):
+        """DomExtractionResult handles multiple warnings."""
+        from app.models import DomExtractionResult, ExtractionQuality, QualityWarning
+
+        warnings = [
+            QualityWarning(code="code1", message="msg1", suggestion="sug1"),
+            QualityWarning(code="code2", message="msg2", suggestion="sug2"),
+            QualityWarning(code="code3", message="msg3", suggestion="sug3"),
+        ]
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+            quality=ExtractionQuality.POOR,
+            warnings=warnings,
+        )
+        assert len(result.warnings) == 3
+        assert result.warnings[0].code == "code1"
+        assert result.warnings[2].code == "code3"
+
+    def test_dom_extraction_result_empty_quality_with_warnings(self):
+        """DomExtractionResult allows EMPTY quality with warnings."""
+        from app.models import DomExtractionResult, ExtractionQuality, QualityWarning
+
+        warning = QualityWarning(
+            code="no_elements",
+            message="No elements extracted",
+            suggestion="Check if page content exists"
+        )
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+            quality=ExtractionQuality.EMPTY,
+            warnings=[warning],
+        )
+        assert result.quality == ExtractionQuality.EMPTY
+        assert len(result.warnings) == 1
+
+    def test_dom_extraction_result_good_quality_no_warnings(self):
+        """DomExtractionResult allows GOOD quality with no warnings."""
+        from app.models import DomExtractionResult, ExtractionQuality
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=25,
+            quality=ExtractionQuality.GOOD,
+            warnings=[],
+        )
+        assert result.quality == ExtractionQuality.GOOD
+        assert result.warnings == []
+
+    def test_dom_extraction_result_invalid_quality_raises_error(self):
+        """DomExtractionResult rejects invalid quality value."""
+        from app.models import DomExtractionResult
+
+        with pytest.raises(ValidationError):
+            DomExtractionResult(
+                elements=[],
+                viewport={"width": 1920, "height": 1080},
+                extraction_time_ms=10.0,
+                element_count=0,
+                quality="invalid",  # type: ignore
+            )
+
+    def test_dom_extraction_result_quality_field_has_description(self):
+        """DomExtractionResult quality field has OpenAPI description."""
+        from app.models import DomExtractionResult
+
+        schema = DomExtractionResult.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "quality" in properties
+        # Quality field should be documented
+        assert "description" in properties.get("quality", {})
+
+    def test_dom_extraction_result_warnings_field_has_description(self):
+        """DomExtractionResult warnings field has OpenAPI description."""
+        from app.models import DomExtractionResult
+
+        schema = DomExtractionResult.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "warnings" in properties
+        # Warnings field should be documented
+        assert "description" in properties.get("warnings", {})
+
+
 class TestScreenshotResponseDomExtraction:
     """Tests for ScreenshotResponse dom_extraction field."""
 

@@ -51,6 +51,14 @@ class DomExtractionResult(BaseModel):
         ..., description="Time taken to extract DOM elements in milliseconds"
     )
     element_count: int = Field(..., description="Total number of elements extracted")
+    quality: Optional["ExtractionQuality"] = Field(
+        default=None,
+        description="Quality assessment of the extraction (good/low/poor/empty)",
+    )
+    warnings: list["QualityWarning"] = Field(
+        default_factory=list,
+        description="Warnings about potential issues with the extraction",
+    )
 
 
 class DomExtractionOptions(BaseModel):
