@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from playwright.async_api import Browser, async_playwright
 
+from .dom_extraction import get_extraction_script
 from .models import Cookie, ImageFormat, ScreenshotRequest, ScreenshotType
 
 
@@ -253,7 +254,9 @@ class ScreenshotService:
         finally:
             await context.close()
 
-    async def capture(self, request: ScreenshotRequest) -> tuple[bytes, float]:
+    async def capture(
+        self, request: ScreenshotRequest
+    ) -> tuple[bytes, float] | tuple[bytes, float, dict[str, Any]]:
         """
         Capture a screenshot based on the request parameters.
 
@@ -261,12 +264,16 @@ class ScreenshotService:
             request: Screenshot request with URL and options
 
         Returns:
-            Tuple of (screenshot bytes, capture time in ms)
+            Tuple of (screenshot bytes, capture time in ms) when extract_dom is
+            None or disabled.
+            Tuple of (screenshot bytes, capture time in ms, dom_result dict) when
+            extract_dom is enabled.
 
         Raises:
             Exception: If screenshot capture fails
         """
         start_time = time.perf_counter()
+        dom_result: Optional[dict[str, Any]] = None
 
         async with self._get_page(request) as page:
             # Navigate to URL
@@ -291,6 +298,23 @@ class ScreenshotService:
             if request.delay > 0:
                 await asyncio.sleep(request.delay / 1000)
 
+            # Extract DOM elements if enabled (do this before screenshot
+            # to ensure same page state)
+            if request.extract_dom and request.extract_dom.enabled:
+                extraction_script = get_extraction_script()
+                options = {
+                    "selectors": request.extract_dom.selectors,
+                    "includeHidden": request.extract_dom.include_hidden,
+                    "minTextLength": request.extract_dom.min_text_length,
+                    "maxElements": request.extract_dom.max_elements,
+                }
+                dom_result = await page.evaluate(
+                    f"""
+                    {extraction_script}
+                    extractDomElements({json.dumps(options)});
+                    """
+                )
+
             # Prepare screenshot options
             screenshot_options = {
                 "type": request.format.value,
@@ -305,6 +329,10 @@ class ScreenshotService:
             screenshot_bytes = await page.screenshot(**screenshot_options)
 
         capture_time = (time.perf_counter() - start_time) * 1000
+
+        # Return with or without DOM result based on extraction status
+        if dom_result is not None:
+            return screenshot_bytes, capture_time, dom_result
         return screenshot_bytes, capture_time
 
     async def health_check(self) -> bool:
