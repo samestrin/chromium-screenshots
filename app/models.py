@@ -137,6 +137,27 @@ class ExtractionQuality(str, Enum):
     EMPTY = "empty"
 
 
+class QualityWarning(BaseModel):
+    """Warning generated during DOM extraction quality assessment.
+
+    Contains actionable information about potential issues with
+    the extracted DOM elements.
+    """
+
+    code: str = Field(
+        ...,
+        description="Machine-readable warning code (e.g., 'low_element_count', 'no_headings')",
+    )
+    message: str = Field(
+        ...,
+        description="Human-readable description of the warning",
+    )
+    suggestion: str = Field(
+        ...,
+        description="Actionable suggestion for addressing the warning",
+    )
+
+
 class ScreenshotType(str, Enum):
     """Screenshot capture type."""
 

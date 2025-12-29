@@ -59,6 +59,120 @@ class TestExtractionQualityEnum:
         assert ExtractionQuality.GOOD == "good"
 
 
+class TestQualityWarningModel:
+    """Tests for QualityWarning Pydantic model."""
+
+    def test_quality_warning_creation_with_all_fields(self):
+        """QualityWarning model accepts code, message, suggestion fields."""
+        from app.models import QualityWarning
+
+        warning = QualityWarning(
+            code="low_element_count",
+            message="Page has very few elements",
+            suggestion="Check if page fully loaded"
+        )
+        assert warning.code == "low_element_count"
+        assert warning.message == "Page has very few elements"
+        assert warning.suggestion == "Check if page fully loaded"
+
+    def test_quality_warning_json_serialization(self):
+        """QualityWarning serializes to JSON correctly."""
+        from app.models import QualityWarning
+
+        warning = QualityWarning(
+            code="no_headings",
+            message="No heading elements found",
+            suggestion="Consider adding h1-h6 elements"
+        )
+        json_str = warning.model_dump_json()
+        assert "no_headings" in json_str
+        assert "No heading elements found" in json_str
+        assert "Consider adding h1-h6 elements" in json_str
+
+    def test_quality_warning_json_deserialization(self):
+        """QualityWarning deserializes from JSON correctly."""
+        from app.models import QualityWarning
+        import json
+
+        json_str = '{"code": "many_hidden", "message": "Many hidden elements", "suggestion": "Review visibility"}'
+        warning = QualityWarning.model_validate_json(json_str)
+        assert warning.code == "many_hidden"
+        assert warning.message == "Many hidden elements"
+        assert warning.suggestion == "Review visibility"
+
+    def test_quality_warning_model_dump(self):
+        """QualityWarning model_dump returns dict."""
+        from app.models import QualityWarning
+
+        warning = QualityWarning(
+            code="test",
+            message="Test message",
+            suggestion="Test suggestion"
+        )
+        data = warning.model_dump()
+        assert isinstance(data, dict)
+        assert data["code"] == "test"
+        assert data["message"] == "Test message"
+        assert data["suggestion"] == "Test suggestion"
+
+    def test_quality_warning_missing_code_raises_error(self):
+        """QualityWarning without code raises ValidationError."""
+        from app.models import QualityWarning
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityWarning(message="msg", suggestion="sug")  # type: ignore
+        assert "code" in str(exc_info.value)
+
+    def test_quality_warning_missing_message_raises_error(self):
+        """QualityWarning without message raises ValidationError."""
+        from app.models import QualityWarning
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityWarning(code="test", suggestion="sug")  # type: ignore
+        assert "message" in str(exc_info.value)
+
+    def test_quality_warning_missing_suggestion_raises_error(self):
+        """QualityWarning without suggestion raises ValidationError."""
+        from app.models import QualityWarning
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityWarning(code="test", message="msg")  # type: ignore
+        assert "suggestion" in str(exc_info.value)
+
+    def test_quality_warning_wrong_type_raises_error(self):
+        """QualityWarning with non-string field raises ValidationError."""
+        from app.models import QualityWarning
+
+        with pytest.raises(ValidationError):
+            QualityWarning(code=123, message="msg", suggestion="sug")  # type: ignore
+
+    def test_quality_warning_special_characters(self):
+        """QualityWarning handles special characters in strings."""
+        from app.models import QualityWarning
+
+        warning = QualityWarning(
+            code="test_code",
+            message='Message with "quotes" and newline\n',
+            suggestion="Suggestion with unicode: café"
+        )
+        # Round-trip via JSON
+        json_str = warning.model_dump_json()
+        restored = QualityWarning.model_validate_json(json_str)
+        assert restored.message == 'Message with "quotes" and newline\n'
+        assert restored.suggestion == "Suggestion with unicode: café"
+
+    def test_quality_warning_has_field_descriptions(self):
+        """QualityWarning fields have descriptions for OpenAPI."""
+        from app.models import QualityWarning
+
+        schema = QualityWarning.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("code", {})
+        assert "description" in properties.get("message", {})
+        assert "description" in properties.get("suggestion", {})
+
+
 class TestDomExtractionOptionsModel:
     """Tests for DomExtractionOptions Pydantic model."""
 
