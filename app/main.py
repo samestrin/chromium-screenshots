@@ -198,6 +198,7 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
         dom_extraction = None
         if dom_result:
             from app.models import BoundingRect, DomElement, DomExtractionResult
+            from app.quality_assessment import assess_extraction_quality
 
             elements = [
                 DomElement(
@@ -212,11 +213,17 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
                 )
                 for el in dom_result["elements"]
             ]
+
+            # Assess extraction quality
+            quality_result = assess_extraction_quality(elements)
+
             dom_extraction = DomExtractionResult(
                 elements=elements,
                 viewport=dom_result["viewport"],
                 extraction_time_ms=dom_result["extraction_time_ms"],
                 element_count=dom_result["element_count"],
+                quality=quality_result.quality,
+                warnings=quality_result.warnings,
             )
 
         return ScreenshotResponse(

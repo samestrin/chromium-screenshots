@@ -529,3 +529,166 @@ class TestOpenAPISchemaExtractDom:
         assert "include_hidden" in properties
         assert "min_text_length" in properties
         assert "max_elements" in properties
+
+
+class TestDomExtractionQualityIntegration:
+    """Tests for DOM extraction quality assessment integration."""
+
+    def test_json_endpoint_returns_quality_when_dom_extracted(self):
+        """POST /screenshot/json includes quality field when DOM extraction enabled."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        # Mock DOM extraction result with elements
+        mock_dom_result = {
+            "elements": [
+                {
+                    "selector": f"#el-{i}",
+                    "xpath": f"/html/body/p[{i}]",
+                    "tag_name": "p",
+                    "text": f"Paragraph text content {i}" * 3,  # >10 chars avg
+                    "rect": {"x": 0, "y": i * 20, "width": 100, "height": 20},
+                    "computed_style": {},
+                    "is_visible": True,
+                    "z_index": 0,
+                }
+                for i in range(10)  # 10 elements -> LOW quality
+            ],
+            "viewport": {"width": 1920, "height": 1080},
+            "extraction_time_ms": 25.0,
+            "element_count": 10,
+        }
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0, mock_dom_result)
+
+            response = client.post(
+                "/screenshot/json",
+                json={
+                    "url": "https://example.com",
+                    "extract_dom": {"enabled": True},
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                assert "dom_extraction" in data
+                assert data["dom_extraction"] is not None
+                # Quality field should be present
+                assert "quality" in data["dom_extraction"]
+                # With 10 elements, should be LOW
+                assert data["dom_extraction"]["quality"] == "low"
+                # Warnings should be present (as list)
+                assert "warnings" in data["dom_extraction"]
+                assert isinstance(data["dom_extraction"]["warnings"], list)
+
+    def test_json_endpoint_quality_is_empty_for_zero_elements(self):
+        """POST /screenshot/json returns EMPTY quality when no elements extracted."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        mock_dom_result = {
+            "elements": [],
+            "viewport": {"width": 1920, "height": 1080},
+            "extraction_time_ms": 5.0,
+            "element_count": 0,
+        }
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0, mock_dom_result)
+
+            response = client.post(
+                "/screenshot/json",
+                json={
+                    "url": "https://example.com",
+                    "extract_dom": {"enabled": True},
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                assert data["dom_extraction"]["quality"] == "empty"
+                # Should have NO_ELEMENTS warning
+                warning_codes = [w["code"] for w in data["dom_extraction"]["warnings"]]
+                assert "NO_ELEMENTS" in warning_codes
+
+    def test_json_endpoint_quality_good_for_diverse_extraction(self):
+        """POST /screenshot/json returns GOOD quality for diverse extraction."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        # Create diverse elements with headings
+        tags = ["h1", "h2", "p", "span", "a", "li", "div"]
+        mock_dom_result = {
+            "elements": [
+                {
+                    "selector": f"#el-{i}",
+                    "xpath": f"/html/body/el[{i}]",
+                    "tag_name": tags[i % len(tags)],
+                    "text": f"Element {i} with sufficient text content here",
+                    "rect": {"x": 0, "y": i * 20, "width": 100, "height": 20},
+                    "computed_style": {},
+                    "is_visible": True,
+                    "z_index": 0,
+                }
+                for i in range(25)  # 25 elements -> eligible for GOOD
+            ],
+            "viewport": {"width": 1920, "height": 1080},
+            "extraction_time_ms": 30.0,
+            "element_count": 25,
+        }
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0, mock_dom_result)
+
+            response = client.post(
+                "/screenshot/json",
+                json={
+                    "url": "https://example.com",
+                    "extract_dom": {"enabled": True},
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                assert data["dom_extraction"]["quality"] == "good"
+
+    def test_json_endpoint_no_quality_without_dom_extraction(self):
+        """POST /screenshot/json has no quality when DOM extraction disabled."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (b"fake_image", 100.0)
+
+            response = client.post(
+                "/screenshot/json",
+                json={"url": "https://example.com"},
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                # dom_extraction should be null/None
+                assert data.get("dom_extraction") is None
+
+    def test_openapi_schema_includes_quality_fields(self):
+        """OpenAPI schema includes quality and warnings in DomExtractionResult."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.get("/openapi.json")
+        openapi = response.json()
+
+        schemas = openapi.get("components", {}).get("schemas", {})
+        dom_result = schemas.get("DomExtractionResult", {})
+        properties = dom_result.get("properties", {})
+
+        # Quality field should be in schema
+        assert "quality" in properties
+        # Warnings field should be in schema
+        assert "warnings" in properties

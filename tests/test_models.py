@@ -4,6 +4,179 @@ import pytest
 from pydantic import ValidationError
 
 
+class TestExtractionQualityEnum:
+    """Tests for ExtractionQuality enum."""
+
+    def test_extraction_quality_enum_exists(self):
+        """ExtractionQuality enum exists with 4 values."""
+        from app.models import ExtractionQuality
+
+        assert hasattr(ExtractionQuality, "GOOD")
+        assert hasattr(ExtractionQuality, "LOW")
+        assert hasattr(ExtractionQuality, "POOR")
+        assert hasattr(ExtractionQuality, "EMPTY")
+        # Verify exactly 4 values
+        assert len(ExtractionQuality) == 4
+
+    def test_extraction_quality_string_values(self):
+        """ExtractionQuality enum values serialize to lowercase strings."""
+        from app.models import ExtractionQuality
+
+        assert ExtractionQuality.GOOD.value == "good"
+        assert ExtractionQuality.LOW.value == "low"
+        assert ExtractionQuality.POOR.value == "poor"
+        assert ExtractionQuality.EMPTY.value == "empty"
+
+    def test_extraction_quality_is_str_enum(self):
+        """ExtractionQuality inherits from str for JSON serialization."""
+        from enum import Enum
+
+        from app.models import ExtractionQuality
+
+        # Should inherit from both str and Enum
+        assert issubclass(ExtractionQuality, str)
+        assert issubclass(ExtractionQuality, Enum)
+        # Value access works correctly
+        assert ExtractionQuality.GOOD.value == "good"
+        assert ExtractionQuality.LOW.value == "low"
+
+    def test_extraction_quality_json_serialization(self):
+        """ExtractionQuality serializes correctly in Pydantic model."""
+        # Create a simple test to verify JSON serialization
+        import json
+
+        from app.models import ExtractionQuality
+        quality = ExtractionQuality.GOOD
+        # str(Enum) with str base should work directly
+        assert json.dumps({"quality": quality}) == '{"quality": "good"}'
+
+    def test_extraction_quality_comparison(self):
+        """ExtractionQuality values can be compared."""
+        from app.models import ExtractionQuality
+
+        assert ExtractionQuality.GOOD == ExtractionQuality.GOOD
+        assert ExtractionQuality.GOOD != ExtractionQuality.LOW
+        # String comparison works due to str base
+        assert ExtractionQuality.GOOD == "good"
+
+
+class TestQualityWarningModel:
+    """Tests for QualityWarning Pydantic model."""
+
+    def test_quality_warning_creation_with_all_fields(self):
+        """QualityWarning model accepts code, message, suggestion fields."""
+        from app.models import QualityWarning
+
+        warning = QualityWarning(
+            code="low_element_count",
+            message="Page has very few elements",
+            suggestion="Check if page fully loaded"
+        )
+        assert warning.code == "low_element_count"
+        assert warning.message == "Page has very few elements"
+        assert warning.suggestion == "Check if page fully loaded"
+
+    def test_quality_warning_json_serialization(self):
+        """QualityWarning serializes to JSON correctly."""
+        from app.models import QualityWarning
+
+        warning = QualityWarning(
+            code="no_headings",
+            message="No heading elements found",
+            suggestion="Consider adding h1-h6 elements"
+        )
+        json_str = warning.model_dump_json()
+        assert "no_headings" in json_str
+        assert "No heading elements found" in json_str
+        assert "Consider adding h1-h6 elements" in json_str
+
+    def test_quality_warning_json_deserialization(self):
+        """QualityWarning deserializes from JSON correctly."""
+
+        from app.models import QualityWarning
+
+        json_str = (
+            '{"code": "many_hidden", "message": "Many hidden elements", '
+            '"suggestion": "Review visibility"}'
+        )
+        warning = QualityWarning.model_validate_json(json_str)
+        assert warning.code == "many_hidden"
+        assert warning.message == "Many hidden elements"
+        assert warning.suggestion == "Review visibility"
+
+    def test_quality_warning_model_dump(self):
+        """QualityWarning model_dump returns dict."""
+        from app.models import QualityWarning
+
+        warning = QualityWarning(
+            code="test",
+            message="Test message",
+            suggestion="Test suggestion"
+        )
+        data = warning.model_dump()
+        assert isinstance(data, dict)
+        assert data["code"] == "test"
+        assert data["message"] == "Test message"
+        assert data["suggestion"] == "Test suggestion"
+
+    def test_quality_warning_missing_code_raises_error(self):
+        """QualityWarning without code raises ValidationError."""
+        from app.models import QualityWarning
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityWarning(message="msg", suggestion="sug")  # type: ignore
+        assert "code" in str(exc_info.value)
+
+    def test_quality_warning_missing_message_raises_error(self):
+        """QualityWarning without message raises ValidationError."""
+        from app.models import QualityWarning
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityWarning(code="test", suggestion="sug")  # type: ignore
+        assert "message" in str(exc_info.value)
+
+    def test_quality_warning_missing_suggestion_raises_error(self):
+        """QualityWarning without suggestion raises ValidationError."""
+        from app.models import QualityWarning
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityWarning(code="test", message="msg")  # type: ignore
+        assert "suggestion" in str(exc_info.value)
+
+    def test_quality_warning_wrong_type_raises_error(self):
+        """QualityWarning with non-string field raises ValidationError."""
+        from app.models import QualityWarning
+
+        with pytest.raises(ValidationError):
+            QualityWarning(code=123, message="msg", suggestion="sug")  # type: ignore
+
+    def test_quality_warning_special_characters(self):
+        """QualityWarning handles special characters in strings."""
+        from app.models import QualityWarning
+
+        warning = QualityWarning(
+            code="test_code",
+            message='Message with "quotes" and newline\n',
+            suggestion="Suggestion with unicode: café"
+        )
+        # Round-trip via JSON
+        json_str = warning.model_dump_json()
+        restored = QualityWarning.model_validate_json(json_str)
+        assert restored.message == 'Message with "quotes" and newline\n'
+        assert restored.suggestion == "Suggestion with unicode: café"
+
+    def test_quality_warning_has_field_descriptions(self):
+        """QualityWarning fields have descriptions for OpenAPI."""
+        from app.models import QualityWarning
+
+        schema = QualityWarning.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("code", {})
+        assert "description" in properties.get("message", {})
+        assert "description" in properties.get("suggestion", {})
+
+
 class TestDomExtractionOptionsModel:
     """Tests for DomExtractionOptions Pydantic model."""
 
@@ -493,6 +666,196 @@ class TestDomExtractionResultModel:
         assert "description" in properties.get("viewport", {})
         assert "description" in properties.get("extraction_time_ms", {})
         assert "description" in properties.get("element_count", {})
+
+
+class TestDomExtractionResultQuality:
+    """Tests for DomExtractionResult quality extension fields."""
+
+    def test_dom_extraction_result_with_quality_and_warnings(self):
+        """DomExtractionResult accepts quality and warnings fields."""
+        from app.models import DomExtractionResult, ExtractionQuality, QualityWarning
+
+        warning = QualityWarning(
+            code="low_element_count",
+            message="Only 3 elements extracted",
+            suggestion="Check if page fully loaded"
+        )
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=3,
+            quality=ExtractionQuality.POOR,
+            warnings=[warning],
+        )
+        assert result.quality == ExtractionQuality.POOR
+        assert len(result.warnings) == 1
+        assert result.warnings[0].code == "low_element_count"
+
+    def test_dom_extraction_result_backward_compatibility(self):
+        """DomExtractionResult works without quality/warnings (backward compat)."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+        )
+        # New fields should have defaults
+        assert result.quality is None
+        assert result.warnings == []
+
+    def test_dom_extraction_result_quality_defaults_to_none(self):
+        """DomExtractionResult quality defaults to None."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+        )
+        assert result.quality is None
+
+    def test_dom_extraction_result_warnings_defaults_to_empty_list(self):
+        """DomExtractionResult warnings defaults to empty list."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+        )
+        assert result.warnings == []
+        assert isinstance(result.warnings, list)
+
+    def test_dom_extraction_result_json_round_trip_with_quality(self):
+        """DomExtractionResult with quality serializes and deserializes correctly."""
+        from app.models import DomExtractionResult, ExtractionQuality, QualityWarning
+
+        warning = QualityWarning(
+            code="no_headings",
+            message="No heading elements found",
+            suggestion="Add h1-h6 elements"
+        )
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+            quality=ExtractionQuality.GOOD,
+            warnings=[warning],
+        )
+        json_str = result.model_dump_json()
+        restored = DomExtractionResult.model_validate_json(json_str)
+        assert restored.quality == ExtractionQuality.GOOD
+        assert len(restored.warnings) == 1
+        assert restored.warnings[0].code == "no_headings"
+
+    def test_dom_extraction_result_json_round_trip_legacy_format(self):
+        """DomExtractionResult deserializes legacy JSON (without quality)."""
+        from app.models import DomExtractionResult
+
+        legacy_json = (
+            '{"elements": [], "viewport": {"width": 1920, "height": 1080}, '
+            '"extraction_time_ms": 10.0, "element_count": 0}'
+        )
+        result = DomExtractionResult.model_validate_json(legacy_json)
+        assert result.quality is None
+        assert result.warnings == []
+
+    def test_dom_extraction_result_multiple_warnings(self):
+        """DomExtractionResult handles multiple warnings."""
+        from app.models import DomExtractionResult, ExtractionQuality, QualityWarning
+
+        warnings = [
+            QualityWarning(code="code1", message="msg1", suggestion="sug1"),
+            QualityWarning(code="code2", message="msg2", suggestion="sug2"),
+            QualityWarning(code="code3", message="msg3", suggestion="sug3"),
+        ]
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+            quality=ExtractionQuality.POOR,
+            warnings=warnings,
+        )
+        assert len(result.warnings) == 3
+        assert result.warnings[0].code == "code1"
+        assert result.warnings[2].code == "code3"
+
+    def test_dom_extraction_result_empty_quality_with_warnings(self):
+        """DomExtractionResult allows EMPTY quality with warnings."""
+        from app.models import DomExtractionResult, ExtractionQuality, QualityWarning
+
+        warning = QualityWarning(
+            code="no_elements",
+            message="No elements extracted",
+            suggestion="Check if page content exists"
+        )
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+            quality=ExtractionQuality.EMPTY,
+            warnings=[warning],
+        )
+        assert result.quality == ExtractionQuality.EMPTY
+        assert len(result.warnings) == 1
+
+    def test_dom_extraction_result_good_quality_no_warnings(self):
+        """DomExtractionResult allows GOOD quality with no warnings."""
+        from app.models import DomExtractionResult, ExtractionQuality
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=25,
+            quality=ExtractionQuality.GOOD,
+            warnings=[],
+        )
+        assert result.quality == ExtractionQuality.GOOD
+        assert result.warnings == []
+
+    def test_dom_extraction_result_invalid_quality_raises_error(self):
+        """DomExtractionResult rejects invalid quality value."""
+        from app.models import DomExtractionResult
+
+        with pytest.raises(ValidationError):
+            DomExtractionResult(
+                elements=[],
+                viewport={"width": 1920, "height": 1080},
+                extraction_time_ms=10.0,
+                element_count=0,
+                quality="invalid",  # type: ignore
+            )
+
+    def test_dom_extraction_result_quality_field_has_description(self):
+        """DomExtractionResult quality field has OpenAPI description."""
+        from app.models import DomExtractionResult
+
+        schema = DomExtractionResult.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "quality" in properties
+        # Quality field should be documented
+        assert "description" in properties.get("quality", {})
+
+    def test_dom_extraction_result_warnings_field_has_description(self):
+        """DomExtractionResult warnings field has OpenAPI description."""
+        from app.models import DomExtractionResult
+
+        schema = DomExtractionResult.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "warnings" in properties
+        # Warnings field should be documented
+        assert "description" in properties.get("warnings", {})
 
 
 class TestScreenshotResponseDomExtraction:

@@ -422,11 +422,43 @@ async def handle_screenshot(arguments: dict) -> list[TextContent]:
         )
 
         if dom_result:
+            # Assess extraction quality
+            from app.models import BoundingRect, DomElement
+            from app.quality_assessment import assess_extraction_quality
+
+            elements = [
+                DomElement(
+                    selector=el["selector"],
+                    xpath=el["xpath"],
+                    tag_name=el["tag_name"],
+                    text=el["text"],
+                    rect=BoundingRect(**el["rect"]),
+                    computed_style=el["computed_style"],
+                    is_visible=el["is_visible"],
+                    z_index=el["z_index"],
+                )
+                for el in dom_result["elements"]
+            ]
+            quality_result = assess_extraction_quality(elements)
+
             response_text += (
                 f"\nDOM Extraction:\n"
                 f"  Elements: {dom_result['element_count']}\n"
+                f"  Quality: {quality_result.quality.value}\n"
                 f"  Extraction time: {dom_result['extraction_time_ms']:.2f}ms\n"
             )
+
+            if quality_result.warnings:
+                response_text += "  Warnings:\n"
+                for warning in quality_result.warnings:
+                    response_text += f"    - [{warning.code}] {warning.message}\n"
+
+            # Add quality to dom_result for JSON output
+            dom_result["quality"] = quality_result.quality.value
+            dom_result["warnings"] = [
+                {"code": w.code, "message": w.message, "suggestion": w.suggestion}
+                for w in quality_result.warnings
+            ]
 
         response_text += f"\nBase64 image data:\n{base64_image}"
 
@@ -502,13 +534,47 @@ async def handle_screenshot_to_file(arguments: dict) -> list[TextContent]:
         )
 
         if dom_result:
+            # Assess extraction quality
             import json
+
+            from app.models import BoundingRect, DomElement
+            from app.quality_assessment import assess_extraction_quality
+
+            elements = [
+                DomElement(
+                    selector=el["selector"],
+                    xpath=el["xpath"],
+                    tag_name=el["tag_name"],
+                    text=el["text"],
+                    rect=BoundingRect(**el["rect"]),
+                    computed_style=el["computed_style"],
+                    is_visible=el["is_visible"],
+                    z_index=el["z_index"],
+                )
+                for el in dom_result["elements"]
+            ]
+            quality_result = assess_extraction_quality(elements)
+
             response_text += (
                 f"\n\nDOM Extraction:\n"
                 f"  Elements: {dom_result['element_count']}\n"
+                f"  Quality: {quality_result.quality.value}\n"
                 f"  Extraction time: {dom_result['extraction_time_ms']:.2f}ms\n"
-                f"\nDOM Elements (JSON):\n{json.dumps(dom_result, indent=2)}"
             )
+
+            if quality_result.warnings:
+                response_text += "  Warnings:\n"
+                for warning in quality_result.warnings:
+                    response_text += f"    - [{warning.code}] {warning.message}\n"
+
+            # Add quality to dom_result for JSON output
+            dom_result["quality"] = quality_result.quality.value
+            dom_result["warnings"] = [
+                {"code": w.code, "message": w.message, "suggestion": w.suggestion}
+                for w in quality_result.warnings
+            ]
+
+            response_text += f"\nDOM Elements (JSON):\n{json.dumps(dom_result, indent=2)}"
 
         return [TextContent(type="text", text=response_text)]
 

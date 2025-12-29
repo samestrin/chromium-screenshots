@@ -51,6 +51,14 @@ class DomExtractionResult(BaseModel):
         ..., description="Time taken to extract DOM elements in milliseconds"
     )
     element_count: int = Field(..., description="Total number of elements extracted")
+    quality: Optional["ExtractionQuality"] = Field(
+        default=None,
+        description="Quality assessment of the extraction (good/low/poor/empty)",
+    )
+    warnings: list["QualityWarning"] = Field(
+        default_factory=list,
+        description="Warnings about potential issues with the extraction",
+    )
 
 
 class DomExtractionOptions(BaseModel):
@@ -119,6 +127,43 @@ class Cookie(BaseModel):
     def __str__(self) -> str:
         """Return string with masked value for security in logs."""
         return f"Cookie(name={self.name!r}, value='***', domain={self.domain!r})"
+
+
+class ExtractionQuality(str, Enum):
+    """Quality assessment of DOM extraction results.
+
+    Indicates the overall quality of extracted DOM elements:
+    - GOOD: 21+ elements with tag diversity (optimal for Vision AI)
+    - LOW: 5-20 elements (usable but may lack context)
+    - POOR: 1-4 elements (minimal extraction, limited usefulness)
+    - EMPTY: 0 elements (no content extracted)
+    """
+
+    GOOD = "good"
+    LOW = "low"
+    POOR = "poor"
+    EMPTY = "empty"
+
+
+class QualityWarning(BaseModel):
+    """Warning generated during DOM extraction quality assessment.
+
+    Contains actionable information about potential issues with
+    the extracted DOM elements.
+    """
+
+    code: str = Field(
+        ...,
+        description="Machine-readable warning code (e.g., 'low_element_count', 'no_headings')",
+    )
+    message: str = Field(
+        ...,
+        description="Human-readable description of the warning",
+    )
+    suggestion: str = Field(
+        ...,
+        description="Actionable suggestion for addressing the warning",
+    )
 
 
 class ScreenshotType(str, Enum):
