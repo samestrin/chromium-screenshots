@@ -401,6 +401,181 @@ class TestTagDiversityDetection:
         assert result.quality == ExtractionQuality.GOOD
 
 
+class TestHiddenElementsDetection:
+    """Tests for hidden elements detection rules."""
+
+    def test_many_hidden_warning_over_50_percent(self):
+        """MANY_HIDDEN warning when >50% elements hidden."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # 60% hidden (6 hidden, 4 visible)
+        elements = [
+            create_dom_element(is_visible=False, text=f"Hidden {i}")
+            for i in range(6)
+        ] + [
+            create_dom_element(is_visible=True, text=f"Visible {i}")
+            for i in range(4)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MANY_HIDDEN" in warning_codes
+
+    def test_no_hidden_warning_under_50_percent(self):
+        """No MANY_HIDDEN warning when <=50% elements hidden."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # Exactly 50% hidden (5 hidden, 5 visible)
+        elements = [
+            create_dom_element(is_visible=False, text=f"Hidden {i}")
+            for i in range(5)
+        ] + [
+            create_dom_element(is_visible=True, text=f"Visible {i}")
+            for i in range(5)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MANY_HIDDEN" not in warning_codes
+
+    def test_hidden_boundary_exactly_50_percent(self):
+        """Boundary: exactly 50% hidden -> no warning."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(is_visible=False, text=f"Hidden {i}")
+            for i in range(5)
+        ] + [
+            create_dom_element(is_visible=True, text=f"Visible {i}")
+            for i in range(5)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MANY_HIDDEN" not in warning_codes
+
+    def test_hidden_boundary_just_over_50_percent(self):
+        """Boundary: 51%+ hidden -> warning."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # 6/10 = 60% hidden (over 50%)
+        elements = [
+            create_dom_element(is_visible=False, text=f"Hidden {i}")
+            for i in range(6)
+        ] + [
+            create_dom_element(is_visible=True, text=f"Visible {i}")
+            for i in range(4)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MANY_HIDDEN" in warning_codes
+
+    def test_all_visible_no_warning(self):
+        """All visible elements -> no MANY_HIDDEN warning."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(is_visible=True, text=f"Visible {i}")
+            for i in range(10)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MANY_HIDDEN" not in warning_codes
+
+    def test_all_hidden_warning(self):
+        """All hidden elements -> MANY_HIDDEN warning."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(is_visible=False, text=f"Hidden {i}")
+            for i in range(10)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MANY_HIDDEN" in warning_codes
+
+
+class TestTextLengthDetection:
+    """Tests for text length detection rules."""
+
+    def test_minimal_text_warning_under_10_chars_avg(self):
+        """MINIMAL_TEXT warning when avg text length < 10 chars."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # Short text, avg < 10 chars
+        elements = [
+            create_dom_element(text="Hi")  # 2 chars
+            for _ in range(10)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MINIMAL_TEXT" in warning_codes
+
+    def test_no_minimal_text_warning_over_10_chars_avg(self):
+        """No MINIMAL_TEXT warning when avg text length >= 10 chars."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # Longer text, avg >= 10 chars
+        elements = [
+            create_dom_element(text="This is a longer text content")  # 30 chars
+            for _ in range(10)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MINIMAL_TEXT" not in warning_codes
+
+    def test_text_length_boundary_exactly_10_chars(self):
+        """Boundary: avg exactly 10 chars -> no warning."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # Each element has exactly 10 chars
+        elements = [
+            create_dom_element(text="1234567890")  # 10 chars
+            for _ in range(10)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MINIMAL_TEXT" not in warning_codes
+
+    def test_text_length_boundary_under_10_chars(self):
+        """Boundary: avg < 10 chars -> warning."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # Each element has 9 chars
+        elements = [
+            create_dom_element(text="123456789")  # 9 chars
+            for _ in range(10)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MINIMAL_TEXT" in warning_codes
+
+    def test_empty_text_elements_warning(self):
+        """Elements with empty text trigger MINIMAL_TEXT warning."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(text="")  # 0 chars
+            for _ in range(10)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MINIMAL_TEXT" in warning_codes
+
+    def test_mixed_text_lengths(self):
+        """Mixed text lengths calculate correct average."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # Average: (20 + 20 + 0 + 0 + 0) / 5 = 8 chars -> warning
+        elements = [
+            create_dom_element(text="12345678901234567890"),  # 20 chars
+            create_dom_element(text="12345678901234567890"),  # 20 chars
+            create_dom_element(text=""),  # 0 chars
+            create_dom_element(text=""),  # 0 chars
+            create_dom_element(text=""),  # 0 chars
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "MINIMAL_TEXT" in warning_codes
+
+
 class TestQualityAssessmentResult:
     """Tests for the structure of quality assessment results."""
 
