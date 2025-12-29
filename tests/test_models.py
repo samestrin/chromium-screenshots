@@ -62,7 +62,7 @@ class TestDomExtractionOptionsModel:
 
         schema = DomExtractionOptions.model_json_schema()
         properties = schema.get("properties", {})
-        
+
         # Check that key fields have descriptions
         assert "description" in properties.get("selectors", {})
         assert "description" in properties.get("include_hidden", {})

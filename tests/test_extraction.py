@@ -4,7 +4,6 @@ import os
 
 import pytest
 
-
 # Path to test fixture
 FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "fixtures", "selector_test.html")
 
@@ -18,8 +17,9 @@ class TestUniqueSelector:
     @pytest.mark.asyncio
     async def test_selector_for_element_with_id(self):
         """Element with ID returns #id selector."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -41,8 +41,9 @@ class TestUniqueSelector:
     @pytest.mark.asyncio
     async def test_selector_for_element_with_classes(self):
         """Element with classes returns .class1.class2 selector."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -65,8 +66,9 @@ class TestUniqueSelector:
     @pytest.mark.asyncio
     async def test_selector_for_nested_element(self):
         """Nested elements return full path with > combinator."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -90,8 +92,9 @@ class TestUniqueSelector:
     @pytest.mark.asyncio
     async def test_selector_for_sibling_uses_nth_of_type(self):
         """Siblings use :nth-of-type(n) for disambiguation."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -119,8 +122,9 @@ class TestUniqueSelector:
     @pytest.mark.asyncio
     async def test_selector_is_queryable(self):
         """Generated selector can be used to find the same element."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -151,8 +155,9 @@ class TestXPathGeneration:
     @pytest.mark.asyncio
     async def test_xpath_returns_full_path(self):
         """XPath returns full path from document root."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -175,8 +180,9 @@ class TestXPathGeneration:
     @pytest.mark.asyncio
     async def test_xpath_includes_sibling_indices(self):
         """XPath includes sibling indices for disambiguation."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -204,8 +210,9 @@ class TestXPathGeneration:
     @pytest.mark.asyncio
     async def test_xpath_handles_deep_nesting(self):
         """XPath handles deeply nested elements."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -230,8 +237,9 @@ class TestXPathGeneration:
     @pytest.mark.asyncio
     async def test_xpath_is_evaluable(self):
         """Generated XPath can be used to find the same element."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -264,8 +272,9 @@ class TestVisibilityDetection:
     @pytest.mark.asyncio
     async def test_display_none_is_not_visible(self):
         """Element with display:none returns false."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -287,8 +296,9 @@ class TestVisibilityDetection:
     @pytest.mark.asyncio
     async def test_visibility_hidden_is_not_visible(self):
         """Element with visibility:hidden returns false."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -310,8 +320,9 @@ class TestVisibilityDetection:
     @pytest.mark.asyncio
     async def test_opacity_zero_is_not_visible(self):
         """Element with opacity:0 returns false."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -333,8 +344,9 @@ class TestVisibilityDetection:
     @pytest.mark.asyncio
     async def test_visible_element_returns_true(self):
         """Visible element returns true."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -356,8 +368,9 @@ class TestVisibilityDetection:
     @pytest.mark.asyncio
     async def test_zero_dimension_element_not_visible(self):
         """Element with zero dimensions is not visible."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -389,8 +402,9 @@ class TestZIndexCalculation:
     @pytest.mark.asyncio
     async def test_auto_z_index_returns_zero(self):
         """Element with auto z-index returns 0."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -412,8 +426,9 @@ class TestZIndexCalculation:
     @pytest.mark.asyncio
     async def test_explicit_z_index_returns_value(self):
         """Element with explicit z-index returns that value."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -437,8 +452,9 @@ class TestZIndexCalculation:
     @pytest.mark.asyncio
     async def test_negative_z_index(self):
         """Element with negative z-index returns negative value."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -469,8 +485,9 @@ class TestExtractionOptions:
     @pytest.mark.asyncio
     async def test_respects_selectors_list(self):
         """Extraction respects selectors list."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -498,8 +515,9 @@ class TestExtractionOptions:
     @pytest.mark.asyncio
     async def test_respects_include_hidden_false(self):
         """Extraction excludes hidden elements by default."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -527,8 +545,9 @@ class TestExtractionOptions:
     @pytest.mark.asyncio
     async def test_respects_include_hidden_true(self):
         """Extraction includes hidden elements when enabled."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -556,8 +575,9 @@ class TestExtractionOptions:
     @pytest.mark.asyncio
     async def test_respects_min_text_length(self):
         """Extraction filters by minimum text length."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -591,8 +611,9 @@ class TestExtractionOptions:
     @pytest.mark.asyncio
     async def test_respects_max_elements(self):
         """Extraction stops at maxElements limit."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -620,8 +641,9 @@ class TestExtractionOptions:
     @pytest.mark.asyncio
     async def test_result_includes_viewport(self):
         """Extraction result includes viewport information."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -650,8 +672,9 @@ class TestExtractionOptions:
     @pytest.mark.asyncio
     async def test_result_includes_extraction_time(self):
         """Extraction result includes extraction_time_ms."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()
@@ -679,8 +702,9 @@ class TestExtractionOptions:
     @pytest.mark.asyncio
     async def test_element_has_all_required_fields(self):
         """Each extracted element has all required fields."""
-        from app.dom_extraction import get_extraction_script
         from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
 
         async with async_playwright() as p:
             browser = await p.chromium.launch()

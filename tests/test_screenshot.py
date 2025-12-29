@@ -3,7 +3,6 @@
 import pytest
 
 
-
 class TestDomainExtraction:
     """Tests for extracting domain from URL for cookie injection."""
 
