@@ -121,6 +121,22 @@ class Cookie(BaseModel):
         return f"Cookie(name={self.name!r}, value='***', domain={self.domain!r})"
 
 
+class ExtractionQuality(str, Enum):
+    """Quality assessment of DOM extraction results.
+
+    Indicates the overall quality of extracted DOM elements:
+    - GOOD: 21+ elements with tag diversity (optimal for Vision AI)
+    - LOW: 5-20 elements (usable but may lack context)
+    - POOR: 1-4 elements (minimal extraction, limited usefulness)
+    - EMPTY: 0 elements (no content extracted)
+    """
+
+    GOOD = "good"
+    LOW = "low"
+    POOR = "poor"
+    EMPTY = "empty"
+
+
 class ScreenshotType(str, Enum):
     """Screenshot capture type."""
 

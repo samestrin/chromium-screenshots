@@ -4,6 +4,61 @@ import pytest
 from pydantic import ValidationError
 
 
+class TestExtractionQualityEnum:
+    """Tests for ExtractionQuality enum."""
+
+    def test_extraction_quality_enum_exists(self):
+        """ExtractionQuality enum exists with 4 values."""
+        from app.models import ExtractionQuality
+
+        assert hasattr(ExtractionQuality, "GOOD")
+        assert hasattr(ExtractionQuality, "LOW")
+        assert hasattr(ExtractionQuality, "POOR")
+        assert hasattr(ExtractionQuality, "EMPTY")
+        # Verify exactly 4 values
+        assert len(ExtractionQuality) == 4
+
+    def test_extraction_quality_string_values(self):
+        """ExtractionQuality enum values serialize to lowercase strings."""
+        from app.models import ExtractionQuality
+
+        assert ExtractionQuality.GOOD.value == "good"
+        assert ExtractionQuality.LOW.value == "low"
+        assert ExtractionQuality.POOR.value == "poor"
+        assert ExtractionQuality.EMPTY.value == "empty"
+
+    def test_extraction_quality_is_str_enum(self):
+        """ExtractionQuality inherits from str for JSON serialization."""
+        from app.models import ExtractionQuality
+        from enum import Enum
+
+        # Should inherit from both str and Enum
+        assert issubclass(ExtractionQuality, str)
+        assert issubclass(ExtractionQuality, Enum)
+        # Value access works correctly
+        assert ExtractionQuality.GOOD.value == "good"
+        assert ExtractionQuality.LOW.value == "low"
+
+    def test_extraction_quality_json_serialization(self):
+        """ExtractionQuality serializes correctly in Pydantic model."""
+        from app.models import ExtractionQuality
+
+        # Create a simple test to verify JSON serialization
+        import json
+        quality = ExtractionQuality.GOOD
+        # str(Enum) with str base should work directly
+        assert json.dumps({"quality": quality}) == '{"quality": "good"}'
+
+    def test_extraction_quality_comparison(self):
+        """ExtractionQuality values can be compared."""
+        from app.models import ExtractionQuality
+
+        assert ExtractionQuality.GOOD == ExtractionQuality.GOOD
+        assert ExtractionQuality.GOOD != ExtractionQuality.LOW
+        # String comparison works due to str base
+        assert ExtractionQuality.GOOD == "good"
+
+
 class TestDomExtractionOptionsModel:
     """Tests for DomExtractionOptions Pydantic model."""
 
