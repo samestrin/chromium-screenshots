@@ -215,6 +215,192 @@ class TestLargeDiversityLess:
         assert result.quality != ExtractionQuality.GOOD
 
 
+class TestTagDiversityDetection:
+    """Tests for tag diversity detection rules."""
+
+    def test_heading_detection_h1(self):
+        """h1 tag is recognized as heading."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [create_dom_element(tag_name="h1", text="Heading") for _ in range(25)]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "NO_HEADINGS" not in warning_codes
+
+    def test_heading_detection_h2(self):
+        """h2 tag is recognized as heading."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [create_dom_element(tag_name="h2", text="Heading") for _ in range(25)]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "NO_HEADINGS" not in warning_codes
+
+    def test_heading_detection_h3(self):
+        """h3 tag is recognized as heading."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [create_dom_element(tag_name="h3", text="Heading") for _ in range(25)]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "NO_HEADINGS" not in warning_codes
+
+    def test_heading_detection_h4(self):
+        """h4 tag is recognized as heading."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [create_dom_element(tag_name="h4", text="Heading") for _ in range(25)]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "NO_HEADINGS" not in warning_codes
+
+    def test_heading_detection_h5(self):
+        """h5 tag is recognized as heading."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [create_dom_element(tag_name="h5", text="Heading") for _ in range(25)]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "NO_HEADINGS" not in warning_codes
+
+    def test_heading_detection_h6(self):
+        """h6 tag is recognized as heading."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [create_dom_element(tag_name="h6", text="Heading") for _ in range(25)]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "NO_HEADINGS" not in warning_codes
+
+    def test_no_headings_warning(self):
+        """NO_HEADINGS warning when no h1-h6 tags present."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # 30 elements, no headings
+        tags = ["p", "span", "a", "div", "li"]
+        elements = [
+            create_dom_element(tag_name=tags[i % len(tags)], text=f"Text {i}")
+            for i in range(30)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "NO_HEADINGS" in warning_codes
+
+    def test_low_tag_diversity_warning_single_tag(self):
+        """LOW_TAG_DIVERSITY warning when all elements same tag (21+ elements)."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [create_dom_element(tag_name="div", text=f"Div {i}") for i in range(25)]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "LOW_TAG_DIVERSITY" in warning_codes
+
+    def test_low_tag_diversity_warning_two_tags(self):
+        """LOW_TAG_DIVERSITY warning when only 2 tag types (21+ elements)."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(tag_name="div" if i % 2 == 0 else "p", text=f"Text {i}")
+            for i in range(25)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "LOW_TAG_DIVERSITY" in warning_codes
+
+    def test_no_diversity_warning_three_tags(self):
+        """No LOW_TAG_DIVERSITY warning with 3+ tag types."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # 3 different tags including heading
+        elements = []
+        for i in range(25):
+            if i % 3 == 0:
+                tag = "h1"
+            elif i % 3 == 1:
+                tag = "p"
+            else:
+                tag = "div"
+            elements.append(create_dom_element(tag_name=tag, text=f"Text {i}"))
+
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "LOW_TAG_DIVERSITY" not in warning_codes
+
+    def test_case_insensitive_tag_matching(self):
+        """Tag matching is case-insensitive."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # Uppercase tags
+        elements = [
+            create_dom_element(tag_name="H1", text="Heading"),
+            *[create_dom_element(tag_name="DIV", text=f"Div {i}") for i in range(24)],
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        # Should recognize H1 as heading (case-insensitive)
+        assert "NO_HEADINGS" not in warning_codes
+
+    def test_diversity_boundary_one_tag(self):
+        """Boundary: 1 unique tag -> LOW_TAG_DIVERSITY (if 21+ elements)."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [create_dom_element(tag_name="span", text=f"S {i}") for i in range(25)]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "LOW_TAG_DIVERSITY" in warning_codes
+
+    def test_diversity_boundary_two_tags(self):
+        """Boundary: 2 unique tags -> LOW_TAG_DIVERSITY (if 21+ elements)."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(tag_name="a" if i % 2 == 0 else "li", text=f"Text {i}")
+            for i in range(25)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "LOW_TAG_DIVERSITY" in warning_codes
+
+    def test_diversity_boundary_three_tags(self):
+        """Boundary: 3 unique tags -> no LOW_TAG_DIVERSITY."""
+        from app.quality_assessment import assess_extraction_quality
+
+        tags = ["h1", "p", "div"]
+        elements = [
+            create_dom_element(tag_name=tags[i % 3], text=f"Text {i}")
+            for i in range(25)
+        ]
+        result = assess_extraction_quality(elements)
+        warning_codes = [w.code for w in result.warnings]
+        assert "LOW_TAG_DIVERSITY" not in warning_codes
+
+    def test_heading_set_defined(self):
+        """HEADING_TAGS constant is defined with h1-h6."""
+        from app.quality_assessment import HEADING_TAGS
+
+        assert HEADING_TAGS is not None
+        assert "h1" in HEADING_TAGS
+        assert "h2" in HEADING_TAGS
+        assert "h3" in HEADING_TAGS
+        assert "h4" in HEADING_TAGS
+        assert "h5" in HEADING_TAGS
+        assert "h6" in HEADING_TAGS
+        assert len(HEADING_TAGS) == 6
+
+    def test_mixed_headings_and_divs_good_quality(self):
+        """Mixed headings and divs with 3+ diversity can be GOOD."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(tag_name="h1", text="Title"),
+            create_dom_element(tag_name="h2", text="Subtitle"),
+            *[create_dom_element(tag_name="div", text=f"Div {i}") for i in range(23)],
+        ]
+        result = assess_extraction_quality(elements)
+        # Has headings and 3 tag types (h1, h2, div)
+        assert result.quality == ExtractionQuality.GOOD
+
+
 class TestQualityAssessmentResult:
     """Tests for the structure of quality assessment results."""
 
