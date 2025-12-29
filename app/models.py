@@ -38,6 +38,21 @@ class DomElement(BaseModel):
     z_index: int = Field(..., description="Stacking order (z-index) of the element")
 
 
+class DomExtractionResult(BaseModel):
+    """Result of DOM element extraction."""
+
+    elements: list[DomElement] = Field(
+        ..., description="List of extracted DOM elements"
+    )
+    viewport: dict[str, Any] = Field(
+        ..., description="Viewport dimensions (width, height, deviceScaleFactor)"
+    )
+    extraction_time_ms: float = Field(
+        ..., description="Time taken to extract DOM elements in milliseconds"
+    )
+    element_count: int = Field(..., description="Total number of elements extracted")
+
+
 class DomExtractionOptions(BaseModel):
     """Options for DOM element extraction."""
 
@@ -197,6 +212,10 @@ class ScreenshotResponse(BaseModel):
     height: int
     file_size_bytes: int
     capture_time_ms: float
+    dom_extraction: Optional[DomExtractionResult] = Field(
+        default=None,
+        description="DOM extraction results, present when extract_dom was enabled",
+    )
 
 
 class ErrorResponse(BaseModel):

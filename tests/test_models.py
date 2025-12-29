@@ -420,6 +420,138 @@ class TestDomElementModel:
         assert "description" in properties.get("z_index", {})
 
 
+class TestDomExtractionResultModel:
+    """Tests for DomExtractionResult Pydantic model."""
+
+    def test_dom_extraction_result_accepts_all_fields(self):
+        """DomExtractionResult accepts elements, viewport, extraction_time_ms, element_count."""
+        from app.models import BoundingRect, DomElement, DomExtractionResult
+
+        rect = BoundingRect(x=0, y=0, width=100, height=50)
+        element = DomElement(
+            selector="h1",
+            xpath="/html/body/h1",
+            tag_name="h1",
+            text="Title",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=0,
+        )
+        result = DomExtractionResult(
+            elements=[element],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=25.5,
+            element_count=1,
+        )
+        assert len(result.elements) == 1
+        assert result.viewport["width"] == 1920
+        assert result.extraction_time_ms == 25.5
+        assert result.element_count == 1
+
+    def test_dom_extraction_result_empty_elements(self):
+        """DomExtractionResult accepts empty elements list."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=10.0,
+            element_count=0,
+        )
+        assert result.elements == []
+        assert result.element_count == 0
+
+    def test_dom_extraction_result_requires_all_fields(self):
+        """DomExtractionResult requires all fields."""
+        from app.models import DomExtractionResult
+
+        with pytest.raises(ValidationError):
+            DomExtractionResult(elements=[])  # type: ignore
+
+    def test_dom_extraction_result_viewport_dict(self):
+        """DomExtractionResult viewport is a dict with dimensions."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1280, "height": 720, "deviceScaleFactor": 2},
+            extraction_time_ms=5.0,
+            element_count=0,
+        )
+        assert result.viewport["width"] == 1280
+        assert result.viewport["deviceScaleFactor"] == 2
+
+    def test_dom_extraction_result_has_field_descriptions(self):
+        """DomExtractionResult fields have descriptions for OpenAPI."""
+        from app.models import DomExtractionResult
+
+        schema = DomExtractionResult.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("elements", {})
+        assert "description" in properties.get("viewport", {})
+        assert "description" in properties.get("extraction_time_ms", {})
+        assert "description" in properties.get("element_count", {})
+
+
+class TestScreenshotResponseDomExtraction:
+    """Tests for ScreenshotResponse dom_extraction field."""
+
+    def test_screenshot_response_has_dom_extraction_field(self):
+        """ScreenshotResponse has optional dom_extraction field."""
+        from app.models import ScreenshotResponse
+
+        response = ScreenshotResponse(
+            url="https://example.com",
+            screenshot_type="viewport",
+            format="png",
+            width=1920,
+            height=1080,
+            file_size_bytes=12345,
+            capture_time_ms=150.0,
+        )
+        assert hasattr(response, "dom_extraction")
+
+    def test_screenshot_response_dom_extraction_defaults_to_none(self):
+        """ScreenshotResponse dom_extraction defaults to None."""
+        from app.models import ScreenshotResponse
+
+        response = ScreenshotResponse(
+            url="https://example.com",
+            screenshot_type="viewport",
+            format="png",
+            width=1920,
+            height=1080,
+            file_size_bytes=12345,
+            capture_time_ms=150.0,
+        )
+        assert response.dom_extraction is None
+
+    def test_screenshot_response_accepts_dom_extraction_result(self):
+        """ScreenshotResponse accepts DomExtractionResult."""
+        from app.models import DomExtractionResult, ScreenshotResponse
+
+        dom_result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080},
+            extraction_time_ms=20.0,
+            element_count=0,
+        )
+        response = ScreenshotResponse(
+            url="https://example.com",
+            screenshot_type="viewport",
+            format="png",
+            width=1920,
+            height=1080,
+            file_size_bytes=12345,
+            capture_time_ms=150.0,
+            dom_extraction=dom_result,
+        )
+        assert response.dom_extraction is not None
+        assert response.dom_extraction.element_count == 0
+
+
 class TestScreenshotRequestStorage:
     """Tests for ScreenshotRequest localStorage and sessionStorage fields."""
 
