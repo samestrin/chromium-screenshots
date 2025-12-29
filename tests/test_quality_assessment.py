@@ -576,6 +576,111 @@ class TestTextLengthDetection:
         assert "MINIMAL_TEXT" in warning_codes
 
 
+class TestPerformanceBenchmarks:
+    """Tests for performance requirements."""
+
+    def test_performance_100_elements_under_5ms(self):
+        """assess_extraction_quality completes in <5ms for 100 elements."""
+        import time
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = create_diverse_elements(100)
+
+        # Run multiple times to get stable measurement
+        iterations = 10
+        total_time = 0
+        for _ in range(iterations):
+            start = time.perf_counter()
+            assess_extraction_quality(elements)
+            end = time.perf_counter()
+            total_time += (end - start) * 1000  # Convert to ms
+
+        avg_time = total_time / iterations
+        assert avg_time < 5.0, f"Average time {avg_time:.2f}ms exceeds 5ms threshold"
+
+    def test_performance_50_elements_under_2ms(self):
+        """assess_extraction_quality completes in <2ms for 50 elements."""
+        import time
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = create_diverse_elements(50)
+
+        iterations = 10
+        total_time = 0
+        for _ in range(iterations):
+            start = time.perf_counter()
+            assess_extraction_quality(elements)
+            end = time.perf_counter()
+            total_time += (end - start) * 1000
+
+        avg_time = total_time / iterations
+        assert avg_time < 2.0, f"Average time {avg_time:.2f}ms exceeds 2ms threshold"
+
+    def test_performance_20_elements_under_1ms(self):
+        """assess_extraction_quality completes in <1ms for 20 elements."""
+        import time
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = create_diverse_elements(20)
+
+        iterations = 10
+        total_time = 0
+        for _ in range(iterations):
+            start = time.perf_counter()
+            assess_extraction_quality(elements)
+            end = time.perf_counter()
+            total_time += (end - start) * 1000
+
+        avg_time = total_time / iterations
+        assert avg_time < 1.0, f"Average time {avg_time:.2f}ms exceeds 1ms threshold"
+
+    def test_performance_linear_scaling(self):
+        """Performance scales linearly (O(n) complexity)."""
+        import time
+        from app.quality_assessment import assess_extraction_quality
+
+        # Measure time for different element counts
+        def measure_time(n: int) -> float:
+            elements = create_diverse_elements(n)
+            iterations = 5
+            total = 0
+            for _ in range(iterations):
+                start = time.perf_counter()
+                assess_extraction_quality(elements)
+                end = time.perf_counter()
+                total += (end - start)
+            return total / iterations
+
+        time_50 = measure_time(50)
+        time_100 = measure_time(100)
+        time_200 = measure_time(200)
+
+        # Check for linear scaling: doubling elements should roughly double time
+        # Allow for 3x tolerance due to overhead and measurement variance
+        ratio_1 = time_100 / time_50 if time_50 > 0 else 1
+        ratio_2 = time_200 / time_100 if time_100 > 0 else 1
+
+        # Ratios should be roughly 2x (linear), definitely not 4x (quadratic)
+        assert ratio_1 < 4.0, f"Ratio 100/50 = {ratio_1:.2f} suggests non-linear scaling"
+        assert ratio_2 < 4.0, f"Ratio 200/100 = {ratio_2:.2f} suggests non-linear scaling"
+
+    def test_performance_empty_list_fast(self):
+        """Empty list should be extremely fast."""
+        import time
+        from app.quality_assessment import assess_extraction_quality
+
+        iterations = 100
+        total_time = 0
+        for _ in range(iterations):
+            start = time.perf_counter()
+            assess_extraction_quality([])
+            end = time.perf_counter()
+            total_time += (end - start) * 1000
+
+        avg_time = total_time / iterations
+        assert avg_time < 0.5, f"Empty list took {avg_time:.3f}ms, expected <0.5ms"
+
+
 class TestQualityAssessmentResult:
     """Tests for the structure of quality assessment results."""
 
