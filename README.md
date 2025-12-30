@@ -62,14 +62,14 @@ Capture screenshot + DOM data + Quality Score in one call.
 ```bash
 curl -X POST "http://localhost:8000/screenshot" \
   -H "Content-Type: application/json" \
-  -d "{ \
-    \"url\": \"https://news.ycombinator.com\", \
-    \"extract_dom\": { \
-      \"enabled\": true, \
-      \"selectors\": [\"span.titleline > a\"], \
-      \"max_elements\": 50 \
-    } \
-  }" -o hn_capture.png
+  -d '{
+    "url": "https://news.ycombinator.com",
+    "extract_dom": {
+      "enabled": true,
+      "selectors": ["span.titleline > a"],
+      "max_elements": 50
+    }
+  }' -o hn_capture.png
 ```
 
 ### 2. The "Impossible" Auth Shot
@@ -78,14 +78,14 @@ Inject `localStorage` to capture authenticated dashboards (Wasp/Firebase).
 ```bash
 curl -X POST "http://localhost:8000/screenshot" \
   -H "Content-Type: application/json" \
-  -d "{ \
-    \"url\": \"https://app.example.com/dashboard\", \
-    \"localStorage\": { \
-      \"wasp:sessionId\": \"secret_session_token\", \
-      \"theme\": \"dark\" \
-    }, \
-    \"wait_for_selector\": \".dashboard-grid\" \
-  }" -o dashboard.png
+  -d '{
+    "url": "https://app.example.com/dashboard",
+    "localStorage": {
+      "wasp:sessionId": "secret_session_token",
+      "theme": "dark"
+    },
+    "wait_for_selector": ".dashboard-grid"
+  }' -o dashboard.png
 ```
 
 ## 📚 Documentation
