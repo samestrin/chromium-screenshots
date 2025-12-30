@@ -34,6 +34,18 @@ This tool is a "visual cortex" for your AI agents. It implements the **Model Con
 *   **`screenshot_to_file`**: Saves to disk to preserve context window tokens.
 *   **`extract_dom`**: Returns text + coordinates for ground-truth verification.
 
+## Comparison with Alternatives
+
+While many tools exist for browser automation and content extraction, `chromium-screenshots` is specifically designed to provide high-fidelity **observation** for AI agents, rather than just raw data or static images.
+
+| Tool Category | Examples | Screenshot | Structural Data | Quality Metric | Primary Focus |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Agent Observation** | **This Repo** | ✅ | ✅ (Atomic DOM) | ✅ | **AI Reliability & Context** |
+| **LLM RAG Scrapers** | Firecrawl, Jina | ✅ | ❌ (Markdown) | ❌ | Text extraction for reading |
+| **Screenshot APIs** | ScreenshotOne, ApiFlash | ✅ | ❌ (HTML) | ⚠️ (Basic) | Marketing & Archiving |
+| **Performance Audit** | Lighthouse CI | ✅ | ✅ (Full DOM) | ✅ | Speed & SEO Audits (Slow) |
+| **Visual Testing** | Percy, Chromatic | ✅ | ✅ (Snapshot) | ✅ | Regression Testing (Diffs) |
+
 ## 🚀 Quick Start
 
 ### Docker (Recommended)
