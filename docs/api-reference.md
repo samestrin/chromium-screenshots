@@ -15,6 +15,30 @@
 
 ---
 
+## GET /health
+
+Service health check endpoint for container orchestration.
+
+### Response
+
+```json
+{
+  "status": "healthy",
+  "version": "1.2.0",
+  "browser": "chromium"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `status` | `healthy` when browser is available |
+| `version` | Current API version from pyproject.toml |
+| `browser` | Browser engine (`chromium`) |
+
+Returns `503 Service Unavailable` if browser is not available.
+
+---
+
 ## POST /screenshot
 
 Full-featured screenshot capture with JSON body.
