@@ -43,3 +43,7 @@ screenshots/
 *.png
 *.jpg
 *.jpeg
+
+# Social Media Drafts
+SOCIAL_POSTS.md
+demo.tape
