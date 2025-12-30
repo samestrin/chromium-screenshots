@@ -1,7 +1,7 @@
 # chromium-screenshots
 
-> **The missing screenshot service for authenticated workflows.**
-> *Inject cookies & localStorage. Native MCP Support. Pixel-perfect Chromium.*
+> **The missing screenshot service for Vision AI & Auth.**
+> *Inject auth. Extract DOM. Zero-drift capture. Pixel-perfect Chromium.*
 
 [![CI](https://github.com/samestrin/chromium-screenshots/actions/workflows/ci.yml/badge.svg)](https://github.com/samestrin/chromium-screenshots/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -10,11 +10,11 @@
 
 ## ⚡ Why this exists
 
-Taking screenshots of modern web apps is broken. Standard tools assume authentication happens via Cookies, but most SPAs (Wasp, Firebase, OpenSaaS) use `localStorage`.
+Taking screenshots for **Vision AI** is hard. If you take a screenshot and then scrape the HTML separately, the page state drifts. Elements move. Popups appear. Your bounding boxes don't match the pixels.
 
-If you try to screenshot your dashboard with a standard tool, you just get a picture of the login page.
+**chromium-screenshots** guarantees **Zero-Drift**. It extracts the DOM coordinates (ground truth) and the screenshot (pixels) from the exact same render frame.
 
-**chromium-screenshots** solves this by letting you inject the *entire* browser state—Cookies, LocalStorage, and SessionStorage—before the page loads.
+Plus, it solves the "Login Page" problem by injecting `localStorage` before the page loads.
 
 ### The "Impossible" Shot
 
@@ -22,18 +22,19 @@ If you try to screenshot your dashboard with a standard tool, you just get a pic
 
 | Feature | Standard Tools | chromium-screenshots |
 | :--- | :--- | :--- |
+| **Data Extraction** | ❌ Image Only | ✅ Image + DOM + Bounding Boxes |
+| **Quality Control** | ❌ None (hope it loaded) | ✅ **Quality Score** (Good/Low/Poor) |
 | **Auth Injection** | ❌ Cookies only | ✅ Cookies + LocalStorage + SessionStorage |
 | **AI Integration** | ❌ Manual API calls | ✅ Native MCP Server (Claude/Gemini) |
-| **DOM Extraction** | ❌ Screenshot only | ✅ Element positions + text for Vision AI |
-| **Rendering** | ⚠️ Often inconsistent | ✅ Pixel-perfect (Playwright) |
 | **SPA Support** | ❌ Fails on hydration | ✅ Waits for selectors/network idle |
 
 ## 🤖 Standardized AI Integration
 
-This tool isn't just an API; it's a "visual cortex" for your AI agents. It implements the **Model Context Protocol (MCP)**, allowing tools like Claude Desktop to natively control the browser.
+This tool is a "visual cortex" for your AI agents. It implements the **Model Context Protocol (MCP)**, allowing tools like Claude Desktop to natively control the browser.
 
 *   **`screenshot`**: Returns base64 data for immediate analysis ("What does this button say?").
-*   **`screenshot_to_file`**: Saves to disk to preserve context window tokens ("Save a snapshot of the landing page").
+*   **`screenshot_to_file`**: Saves to disk to preserve context window tokens.
+*   **`extract_dom`**: Returns text + coordinates for ground-truth verification.
 
 ## 🚀 Quick Start
 
@@ -57,17 +58,43 @@ uvicorn app.main:app --reload
 
 ## 💡 Common Recipes
 
-See what's possible with a single request:
+### 1. Vision AI Ground Truth (New!)
+Capture screenshot + DOM data + Quality Score in one call.
 
 ```bash
-# 1. Simple Full Page Capture
-curl "http://localhost:8000/screenshot?url=https://github.com&type=full_page" -o github.png
-
-# 2. The "Impossible" Auth Shot (Wasp/Firebase/SPA)
-# Inject the session token into localStorage before capturing
 curl -X POST "http://localhost:8000/screenshot" \
   -H "Content-Type: application/json" \
-  -d '{
+  -d 
+'{'
+    "url": "https://news.ycombinator.com",
+    "extract_dom": {
+      "enabled": true,
+      "selectors": ["span.titleline > a"],
+      "max_elements": 50
+    }
+  }' -o hn_capture.png
+```
+
+**Returns Header:** `X-Quality: good`
+**Returns Metadata:**
+```json
+{
+  "quality": "good",
+  "warnings": [],
+  "elements": [
+    {"text": "Launch HN: ...", "rect": {"x": 15, "y": 80, "width": 400, "height": 20}}
+  ]
+}
+```
+
+### 2. The "Impossible" Auth Shot
+Inject `localStorage` to capture authenticated dashboards (Wasp/Firebase).
+
+```bash
+curl -X POST "http://localhost:8000/screenshot" \
+  -H "Content-Type: application/json" \
+  -d 
+'{'
     "url": "https://app.example.com/dashboard",
     "localStorage": {
       "wasp:sessionId": "secret_session_token",
@@ -75,104 +102,61 @@ curl -X POST "http://localhost:8000/screenshot" \
     },
     "wait_for_selector": ".dashboard-grid"
   }' -o dashboard.png
+```
 
-# 3. High-Quality Marketing Shot
-# 2x resolution, JPEG format, dark mode
+### 3. High-Quality Marketing Shot
+2x resolution, JPEG format, dark mode.
+
+```bash
 curl "http://localhost:8000/screenshot?url=https://example.com&width=2560&height=1440&format=jpeg&quality=95&dark=true" -o marketing.jpg
-
-# 4. Check Health (for k8s probes)
-curl http://localhost:8000/health
-
-# 5. DOM-Enhanced Screenshot (extract text positions with image)
-# Returns screenshot + DOM element data for Vision AI correlation
-curl -X POST "http://localhost:8000/screenshot" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://example.com",
-    "extract_dom": {
-      "enabled": true,
-      "selectors": ["h1", "h2", "p", "a", "button"],
-      "max_elements": 100
-    }
-  }' -o result.json
 ```
-
-## 🔍 DOM Extraction (Vision AI Hybrid Mode)
-
-Extract DOM element positions and text alongside screenshots for accurate text identification. This enables hybrid workflows where Vision AI provides bounding boxes and DOM extraction provides ground-truth text.
-
-```python
-# Python example
-import httpx
-
-response = httpx.post("http://localhost:8000/screenshot", json={
-    "url": "https://example.com",
-    "extract_dom": {
-        "enabled": True,
-        "selectors": ["h1", "h2", "p", "a", "button", "label"],
-        "include_hidden": False,
-        "min_text_length": 1,
-        "max_elements": 500
-    }
-})
-
-result = response.json()
-screenshot_b64 = result["image"]
-dom_elements = result["dom_extraction"]["elements"]
-
-# Each element contains:
-# - selector: unique CSS selector
-# - xpath: full XPath
-# - tag_name: HTML tag
-# - text: element text content
-# - rect: {x, y, width, height} bounding box
-# - computed_style: {color, backgroundColor, fontSize, fontWeight}
-# - is_visible: visibility status
-# - z_index: stacking order
-```
-
-**Use Cases:**
-- Correlate Vision AI bounding boxes with actual text content
-- Build training datasets with pixel-perfect labels
-- Automate form filling by element position
-- Create accessibility audits with visual mapping
 
 ## 📚 Documentation
 
-Interactive documentation is available when running locally:
+### Detailed Guides
+
+*   **[API Reference](docs/api-reference.md)**: Full parameter and response documentation
+*   **[DOM Extraction](docs/dom-extraction.md)**: All extraction options and response fields
+*   **[Quality Assessment](docs/quality-assessment.md)**: Detection rules, thresholds, and warnings
+*   **[MCP Server](docs/mcp-server.md)**: Setup for Claude Desktop and AI agents
+
+### Interactive Docs (Local)
 
 *   **Swagger UI**: `http://localhost:8000/docs`
 *   **ReDoc**: `http://localhost:8000/redoc`
 
 ## 🧠 How It Works
 
-**The Flow:**
-1. You (or Claude) send a request with a URL and optional Auth data.
-2. The service spins up a fresh, isolated Chromium context.
-3. It injects your `cookies` and `localStorage` *immediately*.
-4. It navigates to the page (already authenticated).
-5. It captures the pixel-perfect render.
+**The Zero-Drift Flow:**
+1.  **Inject Auth:** Set `cookies` & `localStorage`.
+2.  **Navigate:** Load page and wait for `networkidle`.
+3.  **Freeze:** Pause execution.
+4.  **Extract:** Scrape DOM positions & Text (JS evaluation).
+5.  **Audit:** Run Quality Detection engine (count elements, check visibility).
+6.  **Capture:** Take screenshot.
+7.  **Return:** Send Image + JSON together.
 
 ```mermaid
 sequenceDiagram
     participant U as 👤 User / Agent
     participant A as ⚡ API / MCP
     participant B as 🕸️ Chromium
-    participant S as 💾 Storage
+    participant Q as 🔍 Quality Engine
 
-    U->>A: POST /screenshot (url, auth)
-    A->>B: Create Context
+    U->>A: POST /screenshot (extract_dom=true)
+    A->>B: Create Context & Inject Auth
+    B->>B: Navigate & Wait
     
     rect rgb(30, 30, 30)
-        note right of B: Deep Injection
-        B->>S: Set localStorage items
-        B->>S: Set Cookies
+        note right of B: Critical Section
+        B->>B: Extract DOM (JS)
+        B->>Q: Assess Quality
+        Q-->>B: Quality: GOOD
+        B->>B: Capture Pixels
     end
     
-    B->>B: Navigate to URL
-    B->>B: Wait for Load / Selector
-    B-->>A: Capture Screenshot (Buffer)
-    A-->>U: Return Image (PNG/JPEG)
+    B-->>A: Result (Image + Metadata)
+    A-->>U: Return
 ```
 
 ## License

@@ -1,0 +1,246 @@
+# DOM Extraction
+
+> Extract text and bounding boxes from the same render frame as your screenshot.
+
+DOM extraction enables **Zero-Drift** captures where the screenshot pixels and DOM coordinates are guaranteed to match. This is essential for Vision AI applications that need ground-truth text content.
+
+---
+
+## Quick Start
+
+```bash
+curl -X POST "http://localhost:8000/screenshot/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "extract_dom": {
+      "enabled": true,
+      "selectors": ["h1", "p", "a"],
+      "max_elements": 100
+    }
+  }' | jq '.dom_extraction'
+```
+
+---
+
+## Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `false` | Enable DOM extraction |
+| `selectors` | array | (default list) | CSS selectors to match |
+| `include_hidden` | boolean | `false` | Include `visibility:hidden` or `display:none` elements |
+| `min_text_length` | integer | `1` | Skip elements with less text |
+| `max_elements` | integer | `500` | Cap on returned elements |
+
+### Default Selectors
+
+When `selectors` is not specified:
+
+```
+h1, h2, h3, h4, h5, h6, p, span, a, li, button, label,
+td, th, caption, figcaption, blockquote
+```
+
+### Selector Examples
+
+```json
+// Headlines only
+{"selectors": ["h1", "h2", "h3"]}
+
+// Navigation links
+{"selectors": ["nav a", "header a"]}
+
+// Form elements
+{"selectors": ["input", "button", "label"]}
+
+// All text containers
+{"selectors": ["*"]}  // Use with max_elements!
+```
+
+---
+
+## Response Schema
+
+When `extract_dom.enabled` is true, the response includes:
+
+```json
+{
+  "dom_extraction": {
+    "elements": [...],
+    "viewport": {
+      "width": 1920,
+      "height": 1080,
+      "deviceScaleFactor": 1
+    },
+    "extraction_time_ms": 23.45,
+    "element_count": 47,
+    "quality": "good",
+    "warnings": []
+  }
+}
+```
+
+### DomExtractionResult Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `elements` | array | List of [DomElement](#domelement-fields) objects |
+| `viewport` | object | Page dimensions and scale |
+| `extraction_time_ms` | float | Extraction duration |
+| `element_count` | integer | Total elements returned |
+| `quality` | string | `good`, `low`, `poor`, or `empty` |
+| `warnings` | array | Quality warnings (see [Quality Assessment](quality-assessment.md)) |
+
+---
+
+## DomElement Fields
+
+Each element in the `elements` array:
+
+```json
+{
+  "selector": "body > main > h1:nth-child(1)",
+  "xpath": "/html/body/main/h1[1]",
+  "tag_name": "h1",
+  "text": "Welcome to Example",
+  "rect": {
+    "x": 100,
+    "y": 50,
+    "width": 400,
+    "height": 32
+  },
+  "computed_style": {
+    "color": "rgb(0, 0, 0)",
+    "backgroundColor": "rgba(0, 0, 0, 0)",
+    "fontSize": "32px",
+    "fontWeight": "700"
+  },
+  "is_visible": true,
+  "z_index": 0
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `selector` | string | Unique CSS selector (uses `CSS.escape` for special chars) |
+| `xpath` | string | Full XPath from document root |
+| `tag_name` | string | HTML tag (lowercase) |
+| `text` | string | Text content (trimmed) |
+| `rect` | object | Bounding box with `x`, `y`, `width`, `height` |
+| `computed_style` | object | 4 key CSS properties |
+| `is_visible` | boolean | Visibility state at capture time |
+| `z_index` | integer | Stacking order |
+
+### Bounding Box
+
+The `rect` object uses **viewport coordinates**:
+
+- `x`: Distance from left edge of viewport
+- `y`: Distance from top edge of viewport
+- `width`: Element width in pixels
+- `height`: Element height in pixels
+
+For full-page screenshots, coordinates are relative to the full page, not the visible viewport.
+
+### Computed Style
+
+Four CSS properties are captured:
+
+| Property | Example |
+|----------|---------|
+| `color` | `rgb(0, 0, 0)` |
+| `backgroundColor` | `rgba(255, 255, 255, 1)` |
+| `fontSize` | `16px` |
+| `fontWeight` | `400` |
+
+---
+
+## Use Cases
+
+### Vision AI Ground Truth
+
+```python
+# Capture screenshot + DOM
+response = requests.post(
+    "http://localhost:8000/screenshot/json",
+    json={
+        "url": "https://example.com",
+        "extract_dom": {"enabled": True}
+    }
+)
+data = response.json()
+
+# Vision AI detects bounding box at (105, 48, 398, 30)
+# Find matching DOM element
+for el in data["dom_extraction"]["elements"]:
+    if abs(el["rect"]["x"] - 105) < 10 and abs(el["rect"]["y"] - 48) < 10:
+        print(f"Ground truth: {el['text']}")
+```
+
+### Accessibility Testing
+
+```bash
+# Extract all interactive elements
+curl -X POST "http://localhost:8000/screenshot/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "extract_dom": {
+      "enabled": true,
+      "selectors": ["a", "button", "input", "[role=button]", "[tabindex]"]
+    }
+  }'
+```
+
+### Content Verification
+
+```bash
+# Check headline hierarchy
+curl -X POST "http://localhost:8000/screenshot/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "extract_dom": {
+      "enabled": true,
+      "selectors": ["h1", "h2", "h3", "h4", "h5", "h6"]
+    }
+  }' | jq '.dom_extraction.elements[] | {tag: .tag_name, text: .text}'
+```
+
+---
+
+## Performance
+
+DOM extraction adds minimal overhead:
+
+| Elements | Typical Time |
+|----------|--------------|
+| 50 | ~10ms |
+| 100 | ~20ms |
+| 500 | ~50ms |
+
+Extraction happens in the same Playwright context as the screenshot, ensuring zero drift between pixels and coordinates.
+
+---
+
+## Troubleshooting
+
+### No elements returned
+
+1. Check `quality` field - if `empty`, the selectors didn't match
+2. Verify page has loaded (add `wait_for_timeout`)
+3. Try broader selectors (`["*"]` with low `max_elements`)
+
+### Elements have wrong positions
+
+1. Check `screenshot_type` - `full_page` uses page coordinates, not viewport
+2. Verify no CSS transforms are affecting layout
+3. Check `deviceScaleFactor` in viewport
+
+### Hidden elements included
+
+Set `include_hidden: false` (default) to exclude elements with:
+- `visibility: hidden`
+- `display: none`
+- Zero dimensions
