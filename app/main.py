@@ -2,7 +2,14 @@
 
 import asyncio
 from contextlib import asynccontextmanager
+from importlib.metadata import version as get_version
 from typing import Optional
+
+# Get version from pyproject.toml (single source of truth)
+try:
+    __version__ = get_version("chromium-screenshots")
+except Exception:
+    __version__ = "1.1.0"  # Fallback if not installed as package
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import Response
@@ -107,7 +114,7 @@ app = FastAPI(
         "A fast, Chrome-based screenshot service supporting "
         "viewport and full-page captures."
     ),
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -117,7 +124,7 @@ async def health_check():
     """Health check endpoint for container orchestration."""
     is_healthy = await screenshot_service.health_check()
     if is_healthy:
-        return {"status": "healthy", "browser": "chromium"}
+        return {"status": "healthy", "version": __version__, "browser": "chromium"}
     raise HTTPException(status_code=503, detail="Browser not available")
 
 
