@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chromium-screenshots"
-version = "1.1.0"
+version = "1.2.0"
 description = "Fast, containerized screenshot service using Chromium with HTTP API and MCP server support"
 readme = "README.md"
 license = "MIT"

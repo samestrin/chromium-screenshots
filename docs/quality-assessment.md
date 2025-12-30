@@ -69,14 +69,6 @@ Quality data appears in `dom_extraction`:
 }
 ```
 
-### HTTP Header
-
-The quality level is also returned as an HTTP header:
-
-```
-X-Quality: good
-```
-
 ---
 
 ## Decision Logic

@@ -873,6 +873,7 @@ class TestScreenshotResponseDomExtraction:
             height=1080,
             file_size_bytes=12345,
             capture_time_ms=150.0,
+            image_base64="dGVzdA==",
         )
         assert hasattr(response, "dom_extraction")
 
@@ -888,6 +889,7 @@ class TestScreenshotResponseDomExtraction:
             height=1080,
             file_size_bytes=12345,
             capture_time_ms=150.0,
+            image_base64="dGVzdA==",
         )
         assert response.dom_extraction is None
 
@@ -909,6 +911,7 @@ class TestScreenshotResponseDomExtraction:
             height=1080,
             file_size_bytes=12345,
             capture_time_ms=150.0,
+            image_base64="dGVzdA==",
             dom_extraction=dom_result,
         )
         assert response.dom_extraction is not None

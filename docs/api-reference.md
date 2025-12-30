@@ -68,8 +68,8 @@ Returns the screenshot image directly with headers:
 | Header | Description |
 |--------|-------------|
 | `Content-Type` | `image/png` or `image/jpeg` |
-| `X-Capture-Time` | Capture time in ms |
-| `X-Quality` | Extraction quality (if `extract_dom` enabled) |
+| `X-Capture-Time-Ms` | Capture time in milliseconds |
+| `X-Screenshot-Type` | `viewport` or `full_page` |
 
 ---
 

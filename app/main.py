@@ -1,6 +1,7 @@
 """FastAPI application for Chromium screenshot service."""
 
 import asyncio
+import base64
 from contextlib import asynccontextmanager
 from importlib.metadata import version as get_version
 from typing import Optional
@@ -9,7 +10,7 @@ from typing import Optional
 try:
     __version__ = get_version("chromium-screenshots")
 except Exception:
-    __version__ = "1.1.0"  # Fallback if not installed as package
+    __version__ = "1.2.0"  # Fallback if not installed as package
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import Response
@@ -186,10 +187,11 @@ async def take_screenshot(request: ScreenshotRequest):
 @app.post("/screenshot/json", response_model=ScreenshotResponse)
 async def take_screenshot_with_metadata(request: ScreenshotRequest):
     """
-    Capture a screenshot and return metadata (without the image).
+    Capture a screenshot and return JSON with image + DOM data.
 
-    Useful for validation or when you need capture statistics
-    before downloading the image.
+    Returns base64-encoded image alongside metadata and DOM extraction
+    results. This enables Zero-Drift capture where pixels and DOM
+    coordinates are from the exact same render frame.
     """
     try:
         result = await screenshot_service.capture(request)
@@ -241,6 +243,7 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
             height=request.height,
             file_size_bytes=len(screenshot_bytes),
             capture_time_ms=round(capture_time, 2),
+            image_base64=base64.b64encode(screenshot_bytes).decode("utf-8"),
             dom_extraction=dom_extraction,
         )
     except Exception as e:

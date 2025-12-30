@@ -257,6 +257,10 @@ class ScreenshotResponse(BaseModel):
     height: int
     file_size_bytes: int
     capture_time_ms: float
+    image_base64: str = Field(
+        ...,
+        description="Base64-encoded screenshot image data",
+    )
     dom_extraction: Optional[DomExtractionResult] = Field(
         default=None,
         description="DOM extraction results, present when extract_dom was enabled",
