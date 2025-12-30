@@ -14,9 +14,7 @@ Taking screenshots for **Vision AI** is hard. If you take a screenshot and then 
 
 **chromium-screenshots** guarantees **Zero-Drift**. It extracts the DOM coordinates (ground truth) and the screenshot (pixels) from the exact same render frame.
 
-Plus, it solves the "Login Page" problem by injecting `localStorage` before the page loads.
-
-### The "Impossible" Shot
+### Visual Proof
 
 ![Chromium Screenshots Demo](demo.gif)
 
@@ -58,33 +56,20 @@ uvicorn app.main:app --reload
 
 ## 💡 Common Recipes
 
-### 1. Vision AI Ground Truth (New!)
+### 1. Vision AI Ground Truth
 Capture screenshot + DOM data + Quality Score in one call.
 
 ```bash
 curl -X POST "http://localhost:8000/screenshot" \
   -H "Content-Type: application/json" \
-  -d 
-'{'
-    "url": "https://news.ycombinator.com",
-    "extract_dom": {
-      "enabled": true,
-      "selectors": ["span.titleline > a"],
-      "max_elements": 50
-    }
-  }' -o hn_capture.png
-```
-
-**Returns Header:** `X-Quality: good`
-**Returns Metadata:**
-```json
-{
-  "quality": "good",
-  "warnings": [],
-  "elements": [
-    {"text": "Launch HN: ...", "rect": {"x": 15, "y": 80, "width": 400, "height": 20}}
-  ]
-}
+  -d "{ \
+    \"url\": \"https://news.ycombinator.com\", \
+    \"extract_dom\": { \
+      \"enabled\": true, \
+      \"selectors\": [\"span.titleline > a\"], \
+      \"max_elements\": 50 \
+    } \
+  }" -o hn_capture.png
 ```
 
 ### 2. The "Impossible" Auth Shot
@@ -93,48 +78,35 @@ Inject `localStorage` to capture authenticated dashboards (Wasp/Firebase).
 ```bash
 curl -X POST "http://localhost:8000/screenshot" \
   -H "Content-Type: application/json" \
-  -d 
-'{'
-    "url": "https://app.example.com/dashboard",
-    "localStorage": {
-      "wasp:sessionId": "secret_session_token",
-      "theme": "dark"
-    },
-    "wait_for_selector": ".dashboard-grid"
-  }' -o dashboard.png
-```
-
-### 3. High-Quality Marketing Shot
-2x resolution, JPEG format, dark mode.
-
-```bash
-curl "http://localhost:8000/screenshot?url=https://example.com&width=2560&height=1440&format=jpeg&quality=95&dark=true" -o marketing.jpg
+  -d "{ \
+    \"url\": \"https://app.example.com/dashboard\", \
+    \"localStorage\": { \
+      \"wasp:sessionId\": \"secret_session_token\", \
+      \"theme\": \"dark\" \
+    }, \
+    \"wait_for_selector\": \".dashboard-grid\" \
+  }" -o dashboard.png
 ```
 
 ## 📚 Documentation
 
-### Detailed Guides
+Detailed references for core features:
 
-*   **[API Reference](docs/api-reference.md)**: Full parameter and response documentation
-*   **[DOM Extraction](docs/dom-extraction.md)**: All extraction options and response fields
-*   **[Quality Assessment](docs/quality-assessment.md)**: Detection rules, thresholds, and warnings
-*   **[MCP Server](docs/mcp-server.md)**: Setup for Claude Desktop and AI agents
-
-### Interactive Docs (Local)
-
-*   **Swagger UI**: `http://localhost:8000/docs`
-*   **ReDoc**: `http://localhost:8000/redoc`
+*   **[API Reference](docs/api-reference.md)** - Full endpoint and parameter guide.
+*   **[DOM Extraction](docs/dom-extraction.md)** - How to use ground-truth element coordinates.
+*   **[Quality Assessment](docs/quality-assessment.md)** - Understanding extraction quality and warnings.
+*   **[MCP Server](docs/mcp-server.md)** - Integration with Claude Desktop & AI agents.
 
 ## 🧠 How It Works
 
 **The Zero-Drift Flow:**
-1.  **Inject Auth:** Set `cookies` & `localStorage`.
-2.  **Navigate:** Load page and wait for `networkidle`.
-3.  **Freeze:** Pause execution.
-4.  **Extract:** Scrape DOM positions & Text (JS evaluation).
-5.  **Audit:** Run Quality Detection engine (count elements, check visibility).
-6.  **Capture:** Take screenshot.
-7.  **Return:** Send Image + JSON together.
+1. **Inject Auth:** Set `cookies` & `localStorage`.
+2. **Navigate:** Load page and wait for `networkidle`.
+3. **Freeze:** Pause execution.
+4. **Extract:** Scrape DOM positions & Text (JS evaluation).
+5. **Audit:** Run Quality Detection engine (count elements, check visibility).
+6. **Capture:** Take screenshot.
+7. **Return:** Send Image + JSON together.
 
 ```mermaid
 sequenceDiagram
