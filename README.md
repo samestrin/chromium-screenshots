@@ -16,7 +16,7 @@ Taking screenshots for **Vision AI** is hard. If you take a screenshot and then 
 
 ### Visual Proof
 
-![Chromium Screenshots Demo](demo.gif)
+![Chromium Screenshots Demo](https://vhs.charm.sh/vhs-6Vl8NFcVtMqKOQBhyNeWgZ.gif)
 
 | Feature | Standard Tools | chromium-screenshots |
 | :--- | :--- | :--- |
