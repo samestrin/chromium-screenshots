@@ -278,11 +278,21 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
             if request.extract_dom.target_vision_model:
                 target_model = request.extract_dom.target_vision_model.value
 
+            # Get document dimensions for full_page screenshots
+            doc_width = None
+            doc_height = None
+            if dom_result and request.screenshot_type.value == "full_page":
+                viewport = dom_result.get("viewport", {})
+                doc_width = viewport.get("document_width")
+                doc_height = viewport.get("document_height")
+
             vision_hints = generate_vision_hints(
                 image_width=request.width,
                 image_height=request.height,
                 image_size_bytes=len(screenshot_bytes),
                 target_model=target_model,
+                document_width=doc_width,
+                document_height=doc_height,
             )
 
         return ScreenshotResponse(

@@ -307,6 +307,18 @@ class VisionAIHints(BaseModel):
         description="Image file size in bytes",
     )
 
+    # === Document Dimensions (for full_page screenshots) ===
+    document_width: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Full document width in pixels (for full_page screenshots)",
+    )
+    document_height: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Full document height in pixels (for full_page screenshots)",
+    )
+
     # === Model Compatibility Flags ===
     claude_compatible: bool = Field(
         ...,
@@ -339,6 +351,40 @@ class VisionAIHints(BaseModel):
         description="Coordinate accuracy after resize (1.0 = full accuracy)",
     )
 
+    # === Per-Model Resize Impact (percentage of detail loss) ===
+    resize_impact_claude: float = Field(
+        ...,
+        ge=0.0,
+        description="Resize impact for Claude Vision (percentage, 0.0 = no resize needed)",
+    )
+    resize_impact_gemini: float = Field(
+        ...,
+        ge=0.0,
+        description="Resize impact for Gemini Vision (percentage, 0.0 = no resize needed)",
+    )
+    resize_impact_gpt4v: float = Field(
+        ...,
+        ge=0.0,
+        description="Resize impact for GPT-4V (percentage, 0.0 = no resize needed)",
+    )
+    resize_impact_qwen: float = Field(
+        ...,
+        ge=0.0,
+        description="Resize impact for Qwen-VL (percentage, 0.0 = no resize needed)",
+    )
+
+    # === Recommended Dimensions ===
+    recommended_width: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Recommended width for target model (None if no resize needed)",
+    )
+    recommended_height: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Recommended height for target model (None if no resize needed)",
+    )
+
     # === Tiling Recommendations ===
     tiling_recommended: bool = Field(
         ...,
@@ -352,6 +398,12 @@ class VisionAIHints(BaseModel):
     suggested_tile_size: Optional[dict[str, int]] = Field(
         default=None,
         description="Suggested tile dimensions {'width': int, 'height': int}",
+    )
+    tile_overlap_percent: float = Field(
+        default=15.0,
+        ge=0.0,
+        le=50.0,
+        description="Tile overlap percentage (default 15%)",
     )
     tiling_reason: Optional[str] = Field(
         default=None,

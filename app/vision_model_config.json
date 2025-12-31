@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "description": "Vision AI model configuration profiles",
+  "models": {
+    "claude": {
+      "display_name": "Claude Vision",
+      "max_dimension": 1568,
+      "max_pixels": 2458624,
+      "max_aspect_ratio": 4.0,
+      "notes": "Anthropic Claude Vision models"
+    },
+    "gemini": {
+      "display_name": "Gemini Vision",
+      "max_dimension": 3072,
+      "max_pixels": 9437184,
+      "max_aspect_ratio": 5.0,
+      "notes": "Google Gemini Vision models"
+    },
+    "gpt4v": {
+      "display_name": "GPT-4V",
+      "max_dimension": 2048,
+      "max_pixels": 4194304,
+      "max_aspect_ratio": 4.0,
+      "notes": "OpenAI GPT-4 Vision"
+    },
+    "qwen-vl-max": {
+      "display_name": "Qwen-VL Max",
+      "max_dimension": 4096,
+      "max_pixels": 16777216,
+      "max_aspect_ratio": 6.0,
+      "notes": "Alibaba Qwen Vision Language models"
+    }
+  },
+  "defaults": {
+    "target_model": "claude",
+    "tile_overlap_percent": 15.0
+  }
+}

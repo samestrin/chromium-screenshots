@@ -5,10 +5,34 @@ generating quality levels and actionable warnings to help users
 understand extraction quality and debug issues.
 """
 
+import json
+import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Sequence
 
 from app.models import DomElement, ExtractionQuality, QualityWarning
+
+
+def _load_model_config() -> Optional[dict]:
+    """Load vision model configuration from JSON file if it exists.
+
+    Looks for vision_model_config.json in the app directory.
+    Returns None if file doesn't exist or can't be parsed.
+    """
+    config_path = Path(__file__).parent / "vision_model_config.json"
+    if not config_path.exists():
+        return None
+
+    try:
+        with open(config_path) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+# Load JSON config at module level (optional)
+_MODEL_CONFIG = _load_model_config()
 
 if TYPE_CHECKING:
     from app.models import VisionAIHints
@@ -278,12 +302,147 @@ def assess_extraction_quality(
 
 
 # Vision AI model dimension limits (max dimension in pixels)
+# Configurable via environment variables or JSON config with sensible defaults
+def _get_model_limit(model: str, default: int) -> int:
+    """Get model limit from environment variable, JSON config, or use default.
+
+    Priority: 1. Environment variable, 2. JSON config, 3. Default value
+    """
+    # Check environment variable first
+    env_key = f"VISION_{model.upper().replace('-', '_')}_MAX_DIMENSION"
+    env_value = os.getenv(env_key)
+    if env_value is not None:
+        return int(env_value)
+
+    # Check JSON config
+    if _MODEL_CONFIG and "models" in _MODEL_CONFIG:
+        model_data = _MODEL_CONFIG["models"].get(model, {})
+        if "max_dimension" in model_data:
+            return int(model_data["max_dimension"])
+
+    return default
+
+
+def _get_model_constraints_from_config(model: str) -> dict[str, float]:
+    """Get model constraints from JSON config if available."""
+    if _MODEL_CONFIG and "models" in _MODEL_CONFIG:
+        model_data = _MODEL_CONFIG["models"].get(model, {})
+        return {
+            "max_pixels": model_data.get("max_pixels", float("inf")),
+            "max_aspect_ratio": model_data.get("max_aspect_ratio", float("inf")),
+        }
+    return {"max_pixels": float("inf"), "max_aspect_ratio": float("inf")}
+
+
+# Model limit defaults (can be overridden via environment variables)
+# Environment variable format: VISION_<MODEL>_MAX_DIMENSION
+# Examples:
+#   VISION_CLAUDE_MAX_DIMENSION=1568
+#   VISION_GEMINI_MAX_DIMENSION=3072
+#   VISION_GPT4V_MAX_DIMENSION=2048
+#   VISION_QWEN_VL_MAX_MAX_DIMENSION=4096
 VISION_MODEL_LIMITS: dict[str, int] = {
-    "claude": 1568,
-    "gemini": 3072,
-    "gpt4v": 2048,
-    "qwen-vl-max": 4096,
+    "claude": _get_model_limit("claude", 1568),
+    "gemini": _get_model_limit("gemini", 3072),
+    "gpt4v": _get_model_limit("gpt4v", 2048),
+    "qwen-vl-max": _get_model_limit("qwen-vl-max", 4096),
 }
+
+# Additional model constraints (max_pixels, max_aspect_ratio)
+# Format: model -> {max_pixels: int, max_aspect_ratio: float}
+VISION_MODEL_CONSTRAINTS: dict[str, dict[str, float]] = {
+    "claude": {"max_pixels": 1_568 * 1_568, "max_aspect_ratio": 4.0},
+    "gemini": {"max_pixels": 3_072 * 3_072, "max_aspect_ratio": 5.0},
+    "gpt4v": {"max_pixels": 2_048 * 2_048, "max_aspect_ratio": 4.0},
+    "qwen-vl-max": {"max_pixels": 4_096 * 4_096, "max_aspect_ratio": 6.0},
+}
+
+# Default Vision AI model (configurable via VISION_DEFAULT_MODEL env var or JSON config)
+def _get_default_model() -> str:
+    """Get default model from env var, JSON config, or use 'claude'."""
+    env_value = os.getenv("VISION_DEFAULT_MODEL")
+    if env_value:
+        return env_value
+    if _MODEL_CONFIG and "defaults" in _MODEL_CONFIG:
+        return _MODEL_CONFIG["defaults"].get("target_model", "claude")
+    return "claude"
+
+
+VISION_DEFAULT_MODEL: str = _get_default_model()
+
+
+# Default tile overlap percentage (configurable via VISION_TILE_OVERLAP_PERCENT or JSON config)
+def _get_tile_overlap() -> float:
+    """Get tile overlap from env var, JSON config, or use 15%."""
+    env_value = os.getenv("VISION_TILE_OVERLAP_PERCENT")
+    if env_value:
+        return float(env_value)
+    if _MODEL_CONFIG and "defaults" in _MODEL_CONFIG:
+        return float(_MODEL_CONFIG["defaults"].get("tile_overlap_percent", 15))
+    return 15.0
+
+
+VISION_TILE_OVERLAP_PERCENT: float = _get_tile_overlap()
+
+
+def _calculate_resize_impact(max_dimension: int, model_limit: int) -> float:
+    """Calculate resize impact percentage for a model.
+
+    Formula: (max(width, height) - limit) / max(width, height) * 100
+    Returns 0.0 if no resize is needed.
+    """
+    if max_dimension <= model_limit:
+        return 0.0
+    return ((max_dimension - model_limit) / max_dimension) * 100
+
+
+def _calculate_recommended_dimensions(
+    width: int, height: int, target_limit: int
+) -> tuple[Optional[int], Optional[int]]:
+    """Calculate recommended dimensions to fit within target limit.
+
+    Maintains aspect ratio while scaling to fit within the limit.
+    Returns (None, None) if no resize is needed.
+    """
+    max_dim = max(width, height)
+    if max_dim <= target_limit:
+        return None, None
+
+    scale = target_limit / max_dim
+    return int(width * scale), int(height * scale)
+
+
+def _check_model_compatibility(
+    width: int, height: int, model: str
+) -> tuple[bool, Optional[str]]:
+    """Check if image is compatible with a model, including all constraints.
+
+    Returns (is_compatible, reason_if_not_compatible).
+    """
+    max_dimension = max(width, height)
+    limit = VISION_MODEL_LIMITS.get(model, 0)
+
+    if max_dimension > limit:
+        return False, f"max dimension {max_dimension}px exceeds {model} limit of {limit}px"
+
+    constraints = VISION_MODEL_CONSTRAINTS.get(model, {})
+
+    # Check max_pixels constraint
+    total_pixels = width * height
+    max_pixels = constraints.get("max_pixels", float("inf"))
+    if total_pixels > max_pixels:
+        return False, (
+            f"total pixels ({total_pixels:,}) exceeds "
+            f"{model} max_pixels ({int(max_pixels):,})"
+        )
+
+    # Check aspect ratio constraint
+    aspect_ratio = max(width, height) / min(width, height) if min(width, height) > 0 else 1.0
+    max_aspect = constraints.get("max_aspect_ratio", float("inf"))
+    if aspect_ratio > max_aspect:
+        return False, f"aspect ratio ({aspect_ratio:.2f}) exceeds {model} max ({max_aspect:.1f})"
+
+    return True, None
 
 
 def generate_vision_hints(
@@ -291,6 +450,8 @@ def generate_vision_hints(
     image_height: int,
     image_size_bytes: int,
     target_model: Optional[str] = None,
+    document_width: Optional[int] = None,
+    document_height: Optional[int] = None,
 ) -> "VisionAIHints":
     """Generate Vision AI optimization hints for an image.
 
@@ -303,7 +464,9 @@ def generate_vision_hints(
         image_height: Image height in pixels
         image_size_bytes: Image file size in bytes
         target_model: Optional specific model to optimize for.
-                      If None, uses most restrictive (Claude) for resize.
+                      If None, uses VISION_DEFAULT_MODEL env var or 'claude'.
+        document_width: Full document width for full_page screenshots
+        document_height: Full document height for full_page screenshots
 
     Returns:
         VisionAIHints with compatibility flags, resize factors, and
@@ -311,54 +474,93 @@ def generate_vision_hints(
     """
     from app.models import VisionAIHints
 
+    # Use document dimensions for tiling if available (full_page screenshots)
+    tiling_width = document_width if document_width else image_width
+    tiling_height = document_height if document_height else image_height
+
     max_dimension = max(image_width, image_height)
+    max_tiling_dimension = max(tiling_width, tiling_height)
 
-    # Calculate compatibility for each model
-    claude_compatible = max_dimension <= VISION_MODEL_LIMITS["claude"]
-    gemini_compatible = max_dimension <= VISION_MODEL_LIMITS["gemini"]
-    gpt4v_compatible = max_dimension <= VISION_MODEL_LIMITS["gpt4v"]
-    qwen_compatible = max_dimension <= VISION_MODEL_LIMITS["qwen-vl-max"]
+    # Calculate compatibility for each model (using image dimensions)
+    claude_compat, claude_reason = _check_model_compatibility(image_width, image_height, "claude")
+    gemini_compat, gemini_reason = _check_model_compatibility(image_width, image_height, "gemini")
+    gpt4v_compat, gpt4v_reason = _check_model_compatibility(image_width, image_height, "gpt4v")
+    qwen_compat, qwen_reason = _check_model_compatibility(image_width, image_height, "qwen-vl-max")
 
-    # Calculate resize factor based on target model or most restrictive
-    if target_model and target_model in VISION_MODEL_LIMITS:
-        target_limit = VISION_MODEL_LIMITS[target_model]
-    else:
-        # Default to most restrictive (Claude)
-        target_limit = VISION_MODEL_LIMITS["claude"]
+    # Calculate per-model resize impact percentages
+    resize_impact_claude = _calculate_resize_impact(max_dimension, VISION_MODEL_LIMITS["claude"])
+    resize_impact_gemini = _calculate_resize_impact(max_dimension, VISION_MODEL_LIMITS["gemini"])
+    resize_impact_gpt4v = _calculate_resize_impact(max_dimension, VISION_MODEL_LIMITS["gpt4v"])
+    resize_impact_qwen = _calculate_resize_impact(max_dimension, VISION_MODEL_LIMITS["qwen-vl-max"])
 
+    # Determine target model for resize calculations
+    effective_target = target_model if target_model in VISION_MODEL_LIMITS else VISION_DEFAULT_MODEL
+    target_limit = VISION_MODEL_LIMITS.get(effective_target, VISION_MODEL_LIMITS["claude"])
+
+    # Calculate resize factor and recommended dimensions
     if max_dimension <= target_limit:
         estimated_resize_factor = 1.0
         coordinate_accuracy = 1.0
+        recommended_width = None
+        recommended_height = None
     else:
         estimated_resize_factor = target_limit / max_dimension
         coordinate_accuracy = estimated_resize_factor
+        recommended_width, recommended_height = _calculate_recommended_dimensions(
+            image_width, image_height, target_limit
+        )
 
-    # Determine tiling recommendations
-    # Tiling is recommended if image exceeds all model limits
-    all_limits_exceeded = not any([
-        claude_compatible,
-        gemini_compatible,
-        gpt4v_compatible,
-        qwen_compatible,
-    ])
+    # Determine tiling recommendations using document dimensions for full_page
+    # Tiling is recommended if image exceeds target model limit
+    target_exceeded = max_tiling_dimension > target_limit
 
-    if all_limits_exceeded:
+    if target_exceeded:
         tiling_recommended = True
-        # Calculate suggested tile count based on largest model limit (Qwen-VL)
-        max_model_limit = VISION_MODEL_LIMITS["qwen-vl-max"]
-        tiles_x = max(1, (image_width + max_model_limit - 1) // max_model_limit)
-        tiles_y = max(1, (image_height + max_model_limit - 1) // max_model_limit)
+        # Calculate suggested tile count based on target model limit
+        # Account for overlap
+        overlap_factor = 1.0 - (VISION_TILE_OVERLAP_PERCENT / 100.0)
+        effective_tile_dim = int(target_limit * overlap_factor)
+
+        tiles_x = max(1, (tiling_width + effective_tile_dim - 1) // effective_tile_dim)
+        tiles_y = max(1, (tiling_height + effective_tile_dim - 1) // effective_tile_dim)
         suggested_tile_count = tiles_x * tiles_y
 
-        # Calculate tile size
-        tile_width = (image_width + tiles_x - 1) // tiles_x
-        tile_height = (image_height + tiles_y - 1) // tiles_y
+        # Calculate tile size (before overlap)
+        tile_width = min(target_limit, (tiling_width + tiles_x - 1) // tiles_x)
+        tile_height = min(target_limit, (tiling_height + tiles_y - 1) // tiles_y)
         suggested_tile_size = {"width": tile_width, "height": tile_height}
 
-        tiling_reason = (
-            f"Image ({image_width}x{image_height}) exceeds all model limits. "
-            f"Recommended {tiles_x}x{tiles_y} grid ({suggested_tile_count} tiles)."
-        )
+        # Build specific reasoning message
+        dimension_info = f"{tiling_width}x{tiling_height}"
+        if document_width and document_height:
+            dimension_info = f"document size {dimension_info}"
+        else:
+            dimension_info = f"image size {dimension_info}"
+
+        # Determine which thresholds are exceeded
+        exceeded_models = []
+        if not claude_compat:
+            exceeded_models.append(f"Claude ({VISION_MODEL_LIMITS['claude']}px)")
+        if not gemini_compat:
+            exceeded_models.append(f"Gemini ({VISION_MODEL_LIMITS['gemini']}px)")
+        if not gpt4v_compat:
+            exceeded_models.append(f"GPT-4V ({VISION_MODEL_LIMITS['gpt4v']}px)")
+        if not qwen_compat:
+            exceeded_models.append(f"Qwen-VL ({VISION_MODEL_LIMITS['qwen-vl-max']}px)")
+
+        if exceeded_models:
+            models_str = ", ".join(exceeded_models)
+            tiling_reason = (
+                f"The {dimension_info} exceeds limits for: {models_str}. "
+                f"Recommended {tiles_x}x{tiles_y} grid ({suggested_tile_count} tiles) "
+                f"with {VISION_TILE_OVERLAP_PERCENT:.0f}% overlap for {effective_target}."
+            )
+        else:
+            tiling_reason = (
+                f"The {dimension_info} exceeds {effective_target} limit ({target_limit}px). "
+                f"Recommended {tiles_x}x{tiles_y} grid ({suggested_tile_count} tiles) "
+                f"with {VISION_TILE_OVERLAP_PERCENT:.0f}% overlap."
+            )
     else:
         tiling_recommended = False
         suggested_tile_count = 1
@@ -369,14 +571,23 @@ def generate_vision_hints(
         image_width=image_width,
         image_height=image_height,
         image_size_bytes=image_size_bytes,
-        claude_compatible=claude_compatible,
-        gemini_compatible=gemini_compatible,
-        gpt4v_compatible=gpt4v_compatible,
-        qwen_compatible=qwen_compatible,
+        document_width=document_width,
+        document_height=document_height,
+        claude_compatible=claude_compat,
+        gemini_compatible=gemini_compat,
+        gpt4v_compatible=gpt4v_compat,
+        qwen_compatible=qwen_compat,
         estimated_resize_factor=estimated_resize_factor,
         coordinate_accuracy=coordinate_accuracy,
+        resize_impact_claude=resize_impact_claude,
+        resize_impact_gemini=resize_impact_gemini,
+        resize_impact_gpt4v=resize_impact_gpt4v,
+        resize_impact_qwen=resize_impact_qwen,
+        recommended_width=recommended_width,
+        recommended_height=recommended_height,
         tiling_recommended=tiling_recommended,
         suggested_tile_count=suggested_tile_count,
         suggested_tile_size=suggested_tile_size,
+        tile_overlap_percent=VISION_TILE_OVERLAP_PERCENT,
         tiling_reason=tiling_reason,
     )
