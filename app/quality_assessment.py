@@ -6,9 +6,12 @@ understand extraction quality and debug issues.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from app.models import DomElement, ExtractionQuality, QualityWarning
+
+if TYPE_CHECKING:
+    from app.models import VisionAIHints
 
 # Thresholds for quality levels
 THRESHOLD_EMPTY = 0
@@ -271,4 +274,109 @@ def assess_extraction_quality(
         quality=quality,
         warnings=warnings,
         metrics=metrics,
+    )
+
+
+# Vision AI model dimension limits (max dimension in pixels)
+VISION_MODEL_LIMITS: dict[str, int] = {
+    "claude": 1568,
+    "gemini": 3072,
+    "gpt4v": 2048,
+    "qwen-vl-max": 4096,
+}
+
+
+def generate_vision_hints(
+    image_width: int,
+    image_height: int,
+    image_size_bytes: int,
+    target_model: Optional[str] = None,
+) -> "VisionAIHints":
+    """Generate Vision AI optimization hints for an image.
+
+    Calculates compatibility with various Vision AI models based on
+    image dimensions, and provides resize impact estimation and
+    tiling recommendations.
+
+    Args:
+        image_width: Image width in pixels
+        image_height: Image height in pixels
+        image_size_bytes: Image file size in bytes
+        target_model: Optional specific model to optimize for.
+                      If None, uses most restrictive (Claude) for resize.
+
+    Returns:
+        VisionAIHints with compatibility flags, resize factors, and
+        tiling recommendations.
+    """
+    from app.models import VisionAIHints
+
+    max_dimension = max(image_width, image_height)
+
+    # Calculate compatibility for each model
+    claude_compatible = max_dimension <= VISION_MODEL_LIMITS["claude"]
+    gemini_compatible = max_dimension <= VISION_MODEL_LIMITS["gemini"]
+    gpt4v_compatible = max_dimension <= VISION_MODEL_LIMITS["gpt4v"]
+    qwen_compatible = max_dimension <= VISION_MODEL_LIMITS["qwen-vl-max"]
+
+    # Calculate resize factor based on target model or most restrictive
+    if target_model and target_model in VISION_MODEL_LIMITS:
+        target_limit = VISION_MODEL_LIMITS[target_model]
+    else:
+        # Default to most restrictive (Claude)
+        target_limit = VISION_MODEL_LIMITS["claude"]
+
+    if max_dimension <= target_limit:
+        estimated_resize_factor = 1.0
+        coordinate_accuracy = 1.0
+    else:
+        estimated_resize_factor = target_limit / max_dimension
+        coordinate_accuracy = estimated_resize_factor
+
+    # Determine tiling recommendations
+    # Tiling is recommended if image exceeds all model limits
+    all_limits_exceeded = not any([
+        claude_compatible,
+        gemini_compatible,
+        gpt4v_compatible,
+        qwen_compatible,
+    ])
+
+    if all_limits_exceeded:
+        tiling_recommended = True
+        # Calculate suggested tile count based on largest model limit (Qwen-VL)
+        max_model_limit = VISION_MODEL_LIMITS["qwen-vl-max"]
+        tiles_x = max(1, (image_width + max_model_limit - 1) // max_model_limit)
+        tiles_y = max(1, (image_height + max_model_limit - 1) // max_model_limit)
+        suggested_tile_count = tiles_x * tiles_y
+
+        # Calculate tile size
+        tile_width = (image_width + tiles_x - 1) // tiles_x
+        tile_height = (image_height + tiles_y - 1) // tiles_y
+        suggested_tile_size = {"width": tile_width, "height": tile_height}
+
+        tiling_reason = (
+            f"Image ({image_width}x{image_height}) exceeds all model limits. "
+            f"Recommended {tiles_x}x{tiles_y} grid ({suggested_tile_count} tiles)."
+        )
+    else:
+        tiling_recommended = False
+        suggested_tile_count = 1
+        suggested_tile_size = None
+        tiling_reason = None
+
+    return VisionAIHints(
+        image_width=image_width,
+        image_height=image_height,
+        image_size_bytes=image_size_bytes,
+        claude_compatible=claude_compatible,
+        gemini_compatible=gemini_compatible,
+        gpt4v_compatible=gpt4v_compatible,
+        qwen_compatible=qwen_compatible,
+        estimated_resize_factor=estimated_resize_factor,
+        coordinate_accuracy=coordinate_accuracy,
+        tiling_recommended=tiling_recommended,
+        suggested_tile_count=suggested_tile_count,
+        suggested_tile_size=suggested_tile_size,
+        tiling_reason=tiling_reason,
     )

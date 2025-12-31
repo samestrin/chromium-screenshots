@@ -954,3 +954,159 @@ class TestApiMetricsIntegration:
 
         # Metrics field should be in schema
         assert "metrics" in properties
+
+
+class TestApiVisionHintsIntegration:
+    """Tests for VisionAIHints API integration (Sprint 5.0)."""
+
+    def test_json_endpoint_with_include_vision_hints_true_returns_vision_hints(self):
+        """POST /screenshot/json with include_vision_hints=true returns vision_hints."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (
+                b"fake_image",
+                100.0,
+                {
+                    "elements": [
+                        {
+                            "selector": "#test",
+                            "xpath": "/html/body/div",
+                            "tag_name": "h1",
+                            "text": "Test heading",
+                            "rect": {"x": 0, "y": 0, "width": 100, "height": 50},
+                            "computed_style": {},
+                            "is_visible": True,
+                            "z_index": 0,
+                        },
+                    ],
+                    "viewport": {"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+                    "extraction_time_ms": 10.5,
+                    "element_count": 1,
+                },
+            )
+
+            response = client.post(
+                "/screenshot/json",
+                json={
+                    "url": "https://example.com",
+                    "width": 1920,
+                    "height": 1080,
+                    "extract_dom": {
+                        "enabled": True,
+                        "include_vision_hints": True,
+                    },
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                vision_hints = data.get("vision_hints")
+                assert vision_hints is not None
+
+                # Check required fields
+                assert "image_width" in vision_hints
+                assert "image_height" in vision_hints
+                assert "claude_compatible" in vision_hints
+                assert "gemini_compatible" in vision_hints
+                assert "gpt4v_compatible" in vision_hints
+                assert "qwen_compatible" in vision_hints
+                assert "estimated_resize_factor" in vision_hints
+                assert "tiling_recommended" in vision_hints
+
+    def test_json_endpoint_without_vision_hints_flag_returns_none(self):
+        """POST /screenshot/json without include_vision_hints returns no vision_hints."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (
+                b"fake_image",
+                100.0,
+                {
+                    "elements": [],
+                    "viewport": {"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+                    "extraction_time_ms": 1.0,
+                    "element_count": 0,
+                },
+            )
+
+            response = client.post(
+                "/screenshot/json",
+                json={
+                    "url": "https://example.com",
+                    "extract_dom": {
+                        "enabled": True,
+                        "include_vision_hints": False,
+                    },
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                # Vision hints should be None when not requested
+                assert data.get("vision_hints") is None
+
+    def test_vision_hints_contains_correct_compatibility_for_small_image(self):
+        """Vision hints shows all models compatible for small image."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (
+                b"fake_image" * 1000,  # 10000 bytes
+                100.0,
+                {
+                    "elements": [],
+                    "viewport": {"width": 1280, "height": 720, "deviceScaleFactor": 1},
+                    "extraction_time_ms": 1.0,
+                    "element_count": 0,
+                },
+            )
+
+            response = client.post(
+                "/screenshot/json",
+                json={
+                    "url": "https://example.com",
+                    "width": 1280,
+                    "height": 720,
+                    "extract_dom": {
+                        "enabled": True,
+                        "include_vision_hints": True,
+                    },
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                vision_hints = data.get("vision_hints")
+
+                if vision_hints:
+                    # Small image (1280x720) should be compatible with all models
+                    assert vision_hints["image_width"] == 1280
+                    assert vision_hints["image_height"] == 720
+                    assert vision_hints["claude_compatible"] is True
+                    assert vision_hints["gemini_compatible"] is True
+                    assert vision_hints["gpt4v_compatible"] is True
+                    assert vision_hints["qwen_compatible"] is True
+                    assert vision_hints["tiling_recommended"] is False
+
+    def test_openapi_schema_includes_vision_hints_field(self):
+        """OpenAPI schema includes vision_hints field in ScreenshotResponse."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.get("/openapi.json")
+        openapi = response.json()
+
+        schemas = openapi.get("components", {}).get("schemas", {})
+        screenshot_response = schemas.get("ScreenshotResponse", {})
+        properties = screenshot_response.get("properties", {})
+
+        # Vision hints field should be in schema
+        assert "vision_hints" in properties

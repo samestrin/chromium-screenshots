@@ -1404,8 +1404,9 @@ class TestQualityMetricsModel:
 
     def test_quality_metrics_serializes_to_json(self):
         """QualityMetrics serializes to JSON string correctly."""
-        from app.models import QualityMetrics
         import json
+
+        from app.models import QualityMetrics
 
         metrics = QualityMetrics(
             element_count=5,
@@ -1565,3 +1566,225 @@ class TestDomExtractionResultMetrics:
         properties = schema.get("properties", {})
 
         assert "description" in properties.get("metrics", {})
+
+
+class TestVisionAIHintsModel:
+    """Tests for VisionAIHints Pydantic model (Sprint 5.0 Story 02)."""
+
+    # === Model Existence and Structure ===
+
+    def test_vision_ai_hints_model_exists(self):
+        """VisionAIHints model exists and is importable."""
+        from app.models import VisionAIHints
+
+        assert VisionAIHints is not None
+
+    def test_vision_ai_hints_has_dimension_fields(self):
+        """VisionAIHints has image dimension fields."""
+        from app.models import VisionAIHints
+
+        schema = VisionAIHints.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "image_width" in properties
+        assert "image_height" in properties
+        assert "image_size_bytes" in properties
+
+    def test_vision_ai_hints_has_compatibility_fields(self):
+        """VisionAIHints has model compatibility flag fields."""
+        from app.models import VisionAIHints
+
+        schema = VisionAIHints.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "claude_compatible" in properties
+        assert "gemini_compatible" in properties
+        assert "gpt4v_compatible" in properties
+        assert "qwen_compatible" in properties
+
+    def test_vision_ai_hints_has_resize_fields(self):
+        """VisionAIHints has resize impact fields."""
+        from app.models import VisionAIHints
+
+        schema = VisionAIHints.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "estimated_resize_factor" in properties
+        assert "coordinate_accuracy" in properties
+
+    def test_vision_ai_hints_has_tiling_fields(self):
+        """VisionAIHints has tiling recommendation fields."""
+        from app.models import VisionAIHints
+
+        schema = VisionAIHints.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "tiling_recommended" in properties
+        assert "suggested_tile_count" in properties
+        assert "suggested_tile_size" in properties
+        assert "tiling_reason" in properties
+
+    # === Model Instantiation ===
+
+    def test_vision_ai_hints_instantiation_all_compatible(self):
+        """VisionAIHints can be instantiated with all models compatible."""
+        from app.models import VisionAIHints
+
+        hints = VisionAIHints(
+            image_width=1280,
+            image_height=720,
+            image_size_bytes=150000,
+            claude_compatible=True,
+            gemini_compatible=True,
+            gpt4v_compatible=True,
+            qwen_compatible=True,
+            estimated_resize_factor=1.0,
+            coordinate_accuracy=1.0,
+            tiling_recommended=False,
+            suggested_tile_count=1,
+            suggested_tile_size=None,
+            tiling_reason=None,
+        )
+        assert hints.claude_compatible is True
+        assert hints.gemini_compatible is True
+        assert hints.gpt4v_compatible is True
+        assert hints.qwen_compatible is True
+        assert hints.tiling_recommended is False
+
+    def test_vision_ai_hints_instantiation_partial_compatible(self):
+        """VisionAIHints handles partial compatibility."""
+        from app.models import VisionAIHints
+
+        hints = VisionAIHints(
+            image_width=1920,
+            image_height=1080,
+            image_size_bytes=500000,
+            claude_compatible=False,  # Exceeds 1568px
+            gemini_compatible=True,
+            gpt4v_compatible=True,
+            qwen_compatible=True,
+            estimated_resize_factor=0.817,
+            coordinate_accuracy=0.817,
+            tiling_recommended=False,
+            suggested_tile_count=1,
+            suggested_tile_size=None,
+            tiling_reason=None,
+        )
+        assert hints.claude_compatible is False
+        assert hints.gemini_compatible is True
+
+    def test_vision_ai_hints_with_tiling_recommended(self):
+        """VisionAIHints handles tiling recommendations."""
+        from app.models import VisionAIHints
+
+        hints = VisionAIHints(
+            image_width=4096,
+            image_height=8000,
+            image_size_bytes=2000000,
+            claude_compatible=False,
+            gemini_compatible=False,
+            gpt4v_compatible=False,
+            qwen_compatible=False,
+            estimated_resize_factor=0.25,
+            coordinate_accuracy=0.25,
+            tiling_recommended=True,
+            suggested_tile_count=6,
+            suggested_tile_size={"width": 1024, "height": 1333},
+            tiling_reason="Image exceeds all model limits",
+        )
+        assert hints.tiling_recommended is True
+        assert hints.suggested_tile_count == 6
+        assert hints.tiling_reason == "Image exceeds all model limits"
+
+    # === Field Validation ===
+
+    def test_vision_ai_hints_dimension_fields_positive(self):
+        """VisionAIHints dimension fields must be positive."""
+        from app.models import VisionAIHints
+
+        with pytest.raises(ValidationError) as exc_info:
+            VisionAIHints(
+                image_width=-1,
+                image_height=720,
+                image_size_bytes=150000,
+                claude_compatible=True,
+                gemini_compatible=True,
+                gpt4v_compatible=True,
+                qwen_compatible=True,
+                estimated_resize_factor=1.0,
+                coordinate_accuracy=1.0,
+                tiling_recommended=False,
+                suggested_tile_count=1,
+                suggested_tile_size=None,
+                tiling_reason=None,
+            )
+        assert "image_width" in str(exc_info.value).lower()
+
+    def test_vision_ai_hints_resize_factor_range(self):
+        """VisionAIHints resize factor should be 0-1 range."""
+        from app.models import VisionAIHints
+
+        hints = VisionAIHints(
+            image_width=1920,
+            image_height=1080,
+            image_size_bytes=500000,
+            claude_compatible=False,
+            gemini_compatible=True,
+            gpt4v_compatible=True,
+            qwen_compatible=True,
+            estimated_resize_factor=0.5,
+            coordinate_accuracy=0.5,
+            tiling_recommended=False,
+            suggested_tile_count=1,
+            suggested_tile_size=None,
+            tiling_reason=None,
+        )
+        assert 0 <= hints.estimated_resize_factor <= 1
+        assert 0 <= hints.coordinate_accuracy <= 1
+
+    # === Serialization ===
+
+    def test_vision_ai_hints_serializes_to_dict(self):
+        """VisionAIHints serializes to dictionary correctly."""
+        from app.models import VisionAIHints
+
+        hints = VisionAIHints(
+            image_width=1280,
+            image_height=720,
+            image_size_bytes=150000,
+            claude_compatible=True,
+            gemini_compatible=True,
+            gpt4v_compatible=True,
+            qwen_compatible=True,
+            estimated_resize_factor=1.0,
+            coordinate_accuracy=1.0,
+            tiling_recommended=False,
+            suggested_tile_count=1,
+            suggested_tile_size=None,
+            tiling_reason=None,
+        )
+        data = hints.model_dump()
+
+        assert data["image_width"] == 1280
+        assert data["claude_compatible"] is True
+        assert data["tiling_recommended"] is False
+
+    # === Field Descriptions ===
+
+    def test_vision_ai_hints_fields_have_descriptions(self):
+        """VisionAIHints fields have descriptions for OpenAPI."""
+        from app.models import VisionAIHints
+
+        schema = VisionAIHints.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("image_width", {})
+        assert "description" in properties.get("claude_compatible", {})
+        assert "description" in properties.get("tiling_recommended", {})
+
+    def test_vision_ai_hints_has_docstring(self):
+        """VisionAIHints model has a docstring."""
+        from app.models import VisionAIHints
+
+        assert VisionAIHints.__doc__ is not None
+        assert len(VisionAIHints.__doc__) > 10

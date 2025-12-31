@@ -744,3 +744,203 @@ class TestExtractionOptions:
             assert "width" in rect
             assert "height" in rect
             await browser.close()
+
+
+class TestDocumentDimensions:
+    """Tests for document dimension extraction (Sprint 5.0).
+
+    AC: 02-02 - Resize Impact Estimation
+    Document dimensions are needed for Vision AI sizing hints.
+    """
+
+    @pytest.mark.asyncio
+    async def test_result_includes_document_width(self):
+        """Extraction result includes document_width."""
+        from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.set_viewport_size({"width": 1920, "height": 1080})
+            await page.goto(f"file://{FIXTURE_PATH}")
+
+            script = get_extraction_script()
+            result = await page.evaluate(
+                f"""
+                {script}
+                extractDomElements({{
+                    selectors: ['h1'],
+                    includeHidden: false,
+                    minTextLength: 1,
+                    maxElements: 500
+                }});
+                """
+            )
+
+            assert "viewport" in result
+            assert "document_width" in result["viewport"]
+            assert isinstance(result["viewport"]["document_width"], (int, float))
+            assert result["viewport"]["document_width"] > 0
+            await browser.close()
+
+    @pytest.mark.asyncio
+    async def test_result_includes_document_height(self):
+        """Extraction result includes document_height."""
+        from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.set_viewport_size({"width": 1920, "height": 1080})
+            await page.goto(f"file://{FIXTURE_PATH}")
+
+            script = get_extraction_script()
+            result = await page.evaluate(
+                f"""
+                {script}
+                extractDomElements({{
+                    selectors: ['h1'],
+                    includeHidden: false,
+                    minTextLength: 1,
+                    maxElements: 500
+                }});
+                """
+            )
+
+            assert "viewport" in result
+            assert "document_height" in result["viewport"]
+            assert isinstance(result["viewport"]["document_height"], (int, float))
+            assert result["viewport"]["document_height"] > 0
+            await browser.close()
+
+    @pytest.mark.asyncio
+    async def test_viewport_dimensions_still_present(self):
+        """Viewport width/height still returned alongside document dimensions."""
+        from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.set_viewport_size({"width": 1920, "height": 1080})
+            await page.goto(f"file://{FIXTURE_PATH}")
+
+            script = get_extraction_script()
+            result = await page.evaluate(
+                f"""
+                {script}
+                extractDomElements({{
+                    selectors: ['h1'],
+                    includeHidden: false,
+                    minTextLength: 1,
+                    maxElements: 500
+                }});
+                """
+            )
+
+            viewport = result["viewport"]
+            # Original viewport fields
+            assert "width" in viewport
+            assert "height" in viewport
+            assert "deviceScaleFactor" in viewport
+            # New document dimension fields
+            assert "document_width" in viewport
+            assert "document_height" in viewport
+            await browser.close()
+
+    @pytest.mark.asyncio
+    async def test_document_dimensions_for_scrollable_page(self):
+        """Document dimensions larger than viewport for scrollable content."""
+        from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.set_viewport_size({"width": 800, "height": 600})
+
+            # Create a page with content taller than viewport
+            await page.set_content(
+                """
+                <html>
+                <body style="margin:0; padding:0;">
+                    <div style="height: 3000px; width: 100%;">
+                        <h1>Tall Content</h1>
+                        <p>This page is 3000px tall</p>
+                    </div>
+                </body>
+                </html>
+                """
+            )
+
+            script = get_extraction_script()
+            result = await page.evaluate(
+                f"""
+                {script}
+                extractDomElements({{
+                    selectors: ['h1', 'p'],
+                    includeHidden: false,
+                    minTextLength: 1,
+                    maxElements: 500
+                }});
+                """
+            )
+
+            viewport = result["viewport"]
+            # Viewport height is 600
+            assert viewport["height"] == 600
+            # Document height should be >= 3000
+            assert viewport["document_height"] >= 3000
+            await browser.close()
+
+    @pytest.mark.asyncio
+    async def test_document_dimensions_for_wide_page(self):
+        """Document dimensions larger than viewport for horizontal scroll."""
+        from playwright.async_api import async_playwright
+
+        from app.dom_extraction import get_extraction_script
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.set_viewport_size({"width": 800, "height": 600})
+
+            # Create a page with content wider than viewport
+            await page.set_content(
+                """
+                <html>
+                <body style="margin:0; padding:0;">
+                    <div style="width: 4000px; height: 100%;">
+                        <h1>Wide Content</h1>
+                        <p>This page is 4000px wide</p>
+                    </div>
+                </body>
+                </html>
+                """
+            )
+
+            script = get_extraction_script()
+            result = await page.evaluate(
+                f"""
+                {script}
+                extractDomElements({{
+                    selectors: ['h1', 'p'],
+                    includeHidden: false,
+                    minTextLength: 1,
+                    maxElements: 500
+                }});
+                """
+            )
+
+            viewport = result["viewport"]
+            # Viewport width is 800
+            assert viewport["width"] == 800
+            # Document width should be >= 4000
+            assert viewport["document_width"] >= 4000
+            await browser.close()

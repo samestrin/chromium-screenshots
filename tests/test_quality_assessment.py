@@ -1044,3 +1044,350 @@ class TestQualityMetricsComputation:
         elements_good = create_diverse_elements(25)
         result_good = assess_extraction_quality(elements_good)
         assert result_good.quality == ExtractionQuality.GOOD
+
+
+class TestGenerateVisionHints:
+    """Tests for generate_vision_hints() function (Sprint 5.0 Story 02+03).
+
+    AC: 02-01 (Vision AI Model Compatibility)
+    AC: 03-01 (Threshold Detection)
+    AC: 03-02 (Tile Configuration Generation)
+    AC: 03-03 (Recommendation Reasoning)
+    """
+
+    # === Function Existence ===
+
+    def test_generate_vision_hints_exists(self):
+        """generate_vision_hints function exists and is importable."""
+        from app.quality_assessment import generate_vision_hints
+
+        assert callable(generate_vision_hints)
+
+    def test_generate_vision_hints_returns_vision_ai_hints(self):
+        """generate_vision_hints returns VisionAIHints model."""
+        from app.models import VisionAIHints
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=1280, image_height=720, image_size_bytes=150000
+        )
+        assert isinstance(result, VisionAIHints)
+
+    # === Model Compatibility: Claude (1568px) ===
+
+    def test_claude_compatible_when_within_limit(self):
+        """Claude compatible when max dimension <= 1568px."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=1280, image_height=720, image_size_bytes=150000
+        )
+        assert result.claude_compatible is True
+
+    def test_claude_not_compatible_when_exceeds_limit(self):
+        """Claude not compatible when max dimension > 1568px."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=1920, image_height=1080, image_size_bytes=200000
+        )
+        assert result.claude_compatible is False
+
+    def test_claude_compatible_at_exactly_1568(self):
+        """Claude compatible at exactly 1568px boundary."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=1568, image_height=1000, image_size_bytes=150000
+        )
+        assert result.claude_compatible is True
+
+    # === Model Compatibility: Gemini (3072px) ===
+
+    def test_gemini_compatible_when_within_limit(self):
+        """Gemini compatible when max dimension <= 3072px."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=2048, image_height=1536, image_size_bytes=300000
+        )
+        assert result.gemini_compatible is True
+
+    def test_gemini_not_compatible_when_exceeds_limit(self):
+        """Gemini not compatible when max dimension > 3072px."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=4000, image_height=3000, image_size_bytes=500000
+        )
+        assert result.gemini_compatible is False
+
+    # === Model Compatibility: GPT-4V (2048px) ===
+
+    def test_gpt4v_compatible_when_within_limit(self):
+        """GPT-4V compatible when max dimension <= 2048px."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=1920, image_height=1080, image_size_bytes=200000
+        )
+        assert result.gpt4v_compatible is True
+
+    def test_gpt4v_not_compatible_when_exceeds_limit(self):
+        """GPT-4V not compatible when max dimension > 2048px."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=2560, image_height=1440, image_size_bytes=300000
+        )
+        assert result.gpt4v_compatible is False
+
+    # === Model Compatibility: Qwen-VL (4096px) ===
+
+    def test_qwen_compatible_when_within_limit(self):
+        """Qwen-VL compatible when max dimension <= 4096px."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=3840, image_height=2160, image_size_bytes=400000
+        )
+        assert result.qwen_compatible is True
+
+    def test_qwen_not_compatible_when_exceeds_limit(self):
+        """Qwen-VL not compatible when max dimension > 4096px."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=5000, image_height=3000, image_size_bytes=600000
+        )
+        assert result.qwen_compatible is False
+
+    # === Portrait Orientation (Height > Width) ===
+
+    def test_uses_max_dimension_for_portrait(self):
+        """Uses max dimension (height) for portrait orientation."""
+        from app.quality_assessment import generate_vision_hints
+
+        # Height is 2000px which exceeds Claude's 1568px
+        result = generate_vision_hints(
+            image_width=1000, image_height=2000, image_size_bytes=200000
+        )
+        assert result.claude_compatible is False
+        assert result.gpt4v_compatible is True  # 2048 limit
+
+    # === Resize Factor Calculation ===
+
+    def test_resize_factor_is_1_when_all_compatible(self):
+        """Resize factor is 1.0 when image fits all models."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=1280, image_height=720, image_size_bytes=150000
+        )
+        assert result.estimated_resize_factor == 1.0
+        assert result.coordinate_accuracy == 1.0
+
+    def test_resize_factor_for_claude_target(self):
+        """Resize factor calculated for Claude target model."""
+        from app.quality_assessment import generate_vision_hints
+
+        # 1920px image, Claude limit is 1568px
+        # Expected factor: 1568 / 1920 = 0.816...
+        result = generate_vision_hints(
+            image_width=1920,
+            image_height=1080,
+            image_size_bytes=200000,
+            target_model="claude",
+        )
+        assert 0.8 <= result.estimated_resize_factor <= 0.82
+        assert 0.8 <= result.coordinate_accuracy <= 0.82
+
+    def test_resize_factor_for_gpt4v_target(self):
+        """Resize factor calculated for GPT-4V target model."""
+        from app.quality_assessment import generate_vision_hints
+
+        # 4096px image, GPT-4V limit is 2048px
+        # Expected factor: 2048 / 4096 = 0.5
+        result = generate_vision_hints(
+            image_width=4096,
+            image_height=2160,
+            image_size_bytes=400000,
+            target_model="gpt4v",
+        )
+        assert result.estimated_resize_factor == 0.5
+
+    # === Tiling Recommendations ===
+
+    def test_tiling_not_recommended_for_small_images(self):
+        """Tiling not recommended for images within all limits."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=1280, image_height=720, image_size_bytes=150000
+        )
+        assert result.tiling_recommended is False
+        assert result.suggested_tile_count == 1
+        assert result.suggested_tile_size is None
+        assert result.tiling_reason is None
+
+    def test_tiling_recommended_for_very_large_images(self):
+        """Tiling recommended for images exceeding all model limits."""
+        from app.quality_assessment import generate_vision_hints
+
+        # 5000px exceeds all model limits including Qwen-VL's 4096px
+        result = generate_vision_hints(
+            image_width=5000, image_height=8000, image_size_bytes=2000000
+        )
+        assert result.tiling_recommended is True
+        assert result.suggested_tile_count >= 2
+        assert result.tiling_reason is not None
+
+    def test_tile_count_increases_with_image_size(self):
+        """Larger images get more tiles recommended."""
+        from app.quality_assessment import generate_vision_hints
+
+        result_medium = generate_vision_hints(
+            image_width=5000, image_height=5000, image_size_bytes=1000000
+        )
+        result_large = generate_vision_hints(
+            image_width=10000, image_height=10000, image_size_bytes=4000000
+        )
+
+        if result_medium.tiling_recommended and result_large.tiling_recommended:
+            assert result_large.suggested_tile_count >= result_medium.suggested_tile_count
+
+    def test_suggested_tile_size_has_width_and_height(self):
+        """Suggested tile size contains width and height."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=8000, image_height=6000, image_size_bytes=2000000
+        )
+
+        if result.tiling_recommended and result.suggested_tile_size:
+            assert "width" in result.suggested_tile_size
+            assert "height" in result.suggested_tile_size
+            assert result.suggested_tile_size["width"] > 0
+            assert result.suggested_tile_size["height"] > 0
+
+    # === Tiling Reason Text ===
+
+    def test_tiling_reason_mentions_exceeding_limits(self):
+        """Tiling reason explains why tiling is needed."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=6000, image_height=8000, image_size_bytes=2000000
+        )
+
+        if result.tiling_recommended:
+            assert result.tiling_reason is not None
+            # Reason should mention model or limit
+            reason_lower = result.tiling_reason.lower()
+            assert any(
+                keyword in reason_lower
+                for keyword in ["exceed", "limit", "large", "model"]
+            )
+
+    # === Image Dimensions in Result ===
+
+    def test_result_includes_image_dimensions(self):
+        """Result includes original image dimensions."""
+        from app.quality_assessment import generate_vision_hints
+
+        result = generate_vision_hints(
+            image_width=1920, image_height=1080, image_size_bytes=200000
+        )
+        assert result.image_width == 1920
+        assert result.image_height == 1080
+        assert result.image_size_bytes == 200000
+
+    # === Default Target Model Behavior ===
+
+    def test_default_uses_most_restrictive_model(self):
+        """Without target_model, uses most restrictive (Claude) for resize."""
+        from app.quality_assessment import generate_vision_hints
+
+        # 1920px exceeds Claude's 1568px
+        result = generate_vision_hints(
+            image_width=1920, image_height=1080, image_size_bytes=200000
+        )
+        # Resize factor should be based on Claude's limit
+        assert result.estimated_resize_factor < 1.0
+
+    # === VISION_MODEL_LIMITS Constant ===
+
+    def test_vision_model_limits_constant_exists(self):
+        """VISION_MODEL_LIMITS constant is defined."""
+        from app.quality_assessment import VISION_MODEL_LIMITS
+
+        assert isinstance(VISION_MODEL_LIMITS, dict)
+        assert "claude" in VISION_MODEL_LIMITS
+        assert "gemini" in VISION_MODEL_LIMITS
+        assert "gpt4v" in VISION_MODEL_LIMITS
+        assert "qwen-vl-max" in VISION_MODEL_LIMITS
+
+    def test_vision_model_limits_has_correct_values(self):
+        """VISION_MODEL_LIMITS has expected threshold values."""
+        from app.quality_assessment import VISION_MODEL_LIMITS
+
+        assert VISION_MODEL_LIMITS["claude"] == 1568
+        assert VISION_MODEL_LIMITS["gemini"] == 3072
+        assert VISION_MODEL_LIMITS["gpt4v"] == 2048
+        assert VISION_MODEL_LIMITS["qwen-vl-max"] == 4096
+
+    # === Target Model Parameter Handling ===
+
+    def test_target_model_gemini_uses_gemini_limit(self):
+        """target_model='gemini' uses Gemini's 3072px limit."""
+        from app.quality_assessment import generate_vision_hints
+
+        # 3072px exactly at Gemini limit
+        result = generate_vision_hints(
+            image_width=3072,
+            image_height=2048,
+            image_size_bytes=400000,
+            target_model="gemini",
+        )
+        assert result.estimated_resize_factor == 1.0
+
+    def test_target_model_qwen_uses_qwen_limit(self):
+        """target_model='qwen-vl-max' uses Qwen's 4096px limit."""
+        from app.quality_assessment import generate_vision_hints
+
+        # 4096px exactly at Qwen limit
+        result = generate_vision_hints(
+            image_width=4096,
+            image_height=2048,
+            image_size_bytes=400000,
+            target_model="qwen-vl-max",
+        )
+        assert result.estimated_resize_factor == 1.0
+
+    def test_unknown_target_model_uses_claude_limit(self):
+        """Unknown target_model falls back to Claude (most restrictive)."""
+        from app.quality_assessment import generate_vision_hints
+
+        # 1920px exceeds Claude's 1568px
+        result = generate_vision_hints(
+            image_width=1920,
+            image_height=1080,
+            image_size_bytes=200000,
+            target_model="unknown-model",
+        )
+        # Should use Claude's limit (1568 / 1920 ≈ 0.816)
+        assert 0.8 <= result.estimated_resize_factor <= 0.82
+
+    def test_none_target_model_uses_claude_limit(self):
+        """None target_model uses Claude (most restrictive)."""
+        from app.quality_assessment import generate_vision_hints
+
+        # 1920px exceeds Claude's 1568px
+        result = generate_vision_hints(
+            image_width=1920,
+            image_height=1080,
+            image_size_bytes=200000,
+            target_model=None,
+        )
+        # Should use Claude's limit
+        assert result.estimated_resize_factor < 1.0

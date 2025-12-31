@@ -282,6 +282,83 @@ class QualityMetrics(BaseModel):
     )
 
 
+class VisionAIHints(BaseModel):
+    """Vision AI optimization hints for image sizing and tiling.
+
+    Provides model-specific compatibility information, resize impact
+    estimates, and tiling recommendations to optimize Vision AI
+    processing of screenshot images.
+    """
+
+    # === Image Dimensions ===
+    image_width: int = Field(
+        ...,
+        gt=0,
+        description="Image width in pixels",
+    )
+    image_height: int = Field(
+        ...,
+        gt=0,
+        description="Image height in pixels",
+    )
+    image_size_bytes: int = Field(
+        ...,
+        ge=0,
+        description="Image file size in bytes",
+    )
+
+    # === Model Compatibility Flags ===
+    claude_compatible: bool = Field(
+        ...,
+        description="Compatible with Claude Vision (max dimension <= 1568px)",
+    )
+    gemini_compatible: bool = Field(
+        ...,
+        description="Compatible with Gemini Vision (max dimension <= 3072px)",
+    )
+    gpt4v_compatible: bool = Field(
+        ...,
+        description="Compatible with GPT-4V (max dimension <= 2048px)",
+    )
+    qwen_compatible: bool = Field(
+        ...,
+        description="Compatible with Qwen-VL (max dimension <= 4096px)",
+    )
+
+    # === Resize Impact ===
+    estimated_resize_factor: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Estimated resize factor for target model (1.0 = no resize needed)",
+    )
+    coordinate_accuracy: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Coordinate accuracy after resize (1.0 = full accuracy)",
+    )
+
+    # === Tiling Recommendations ===
+    tiling_recommended: bool = Field(
+        ...,
+        description="Whether image tiling is recommended for better results",
+    )
+    suggested_tile_count: int = Field(
+        ...,
+        ge=1,
+        description="Suggested number of tiles if tiling is recommended",
+    )
+    suggested_tile_size: Optional[dict[str, int]] = Field(
+        default=None,
+        description="Suggested tile dimensions {'width': int, 'height': int}",
+    )
+    tiling_reason: Optional[str] = Field(
+        default=None,
+        description="Reason for tiling recommendation",
+    )
+
+
 class ScreenshotType(str, Enum):
     """Screenshot capture type."""
 
@@ -380,6 +457,10 @@ class ScreenshotResponse(BaseModel):
     dom_extraction: Optional[DomExtractionResult] = Field(
         default=None,
         description="DOM extraction results, present when extract_dom was enabled",
+    )
+    vision_hints: Optional[VisionAIHints] = Field(
+        default=None,
+        description="Vision AI optimization hints, present when include_vision_hints was enabled",
     )
 
 

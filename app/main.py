@@ -265,6 +265,26 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
                 metrics=metrics,
             )
 
+        # Generate vision hints if requested
+        vision_hints = None
+        if (
+            request.extract_dom
+            and request.extract_dom.include_vision_hints
+        ):
+            from app.quality_assessment import generate_vision_hints
+
+            # Get target model from request if specified
+            target_model = None
+            if request.extract_dom.target_vision_model:
+                target_model = request.extract_dom.target_vision_model.value
+
+            vision_hints = generate_vision_hints(
+                image_width=request.width,
+                image_height=request.height,
+                image_size_bytes=len(screenshot_bytes),
+                target_model=target_model,
+            )
+
         return ScreenshotResponse(
             url=str(request.url),
             screenshot_type=request.screenshot_type,
@@ -275,6 +295,7 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
             capture_time_ms=round(capture_time, 2),
             image_base64=base64.b64encode(screenshot_bytes).decode("utf-8"),
             dom_extraction=dom_extraction,
+            vision_hints=vision_hints,
         )
     except Exception as e:
         raise HTTPException(
