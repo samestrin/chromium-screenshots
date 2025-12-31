@@ -705,3 +705,342 @@ class TestQualityAssessmentResult:
         assert isinstance(result.warnings, list)
         for w in result.warnings:
             assert isinstance(w, QualityWarning)
+
+
+class TestQualityMetricsComputation:
+    """Tests for QualityMetrics computation in assess_extraction_quality (Sprint 5.0)."""
+
+    def test_result_has_metrics_field(self):
+        """QualityAssessmentResult has metrics field."""
+        from app.quality_assessment import assess_extraction_quality
+
+        result = assess_extraction_quality([])
+        assert hasattr(result, "metrics")
+
+    def test_metrics_has_all_count_fields(self):
+        """Metrics contains all 5 count fields."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = create_diverse_elements(10)
+        result = assess_extraction_quality(elements)
+
+        assert hasattr(result.metrics, "element_count")
+        assert hasattr(result.metrics, "visible_count")
+        assert hasattr(result.metrics, "hidden_count")
+        assert hasattr(result.metrics, "heading_count")
+        assert hasattr(result.metrics, "unique_tag_count")
+
+    def test_metrics_has_all_ratio_fields(self):
+        """Metrics contains all ratio fields."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = create_diverse_elements(10)
+        result = assess_extraction_quality(elements)
+
+        assert hasattr(result.metrics, "visible_ratio")
+        assert hasattr(result.metrics, "hidden_ratio")
+
+    def test_metrics_has_all_tag_fields(self):
+        """Metrics contains all tag analysis fields."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = create_diverse_elements(10)
+        result = assess_extraction_quality(elements)
+
+        assert hasattr(result.metrics, "unique_tags")
+        assert hasattr(result.metrics, "has_headings")
+        assert hasattr(result.metrics, "tag_distribution")
+
+    def test_metrics_has_all_text_stats_fields(self):
+        """Metrics contains all text statistics fields."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = create_diverse_elements(10)
+        result = assess_extraction_quality(elements)
+
+        assert hasattr(result.metrics, "total_text_length")
+        assert hasattr(result.metrics, "avg_text_length")
+        assert hasattr(result.metrics, "min_text_length")
+        assert hasattr(result.metrics, "max_text_length")
+
+    def test_metrics_element_count_computed_correctly(self):
+        """element_count matches number of input elements."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = create_elements(25)
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.element_count == 25
+
+    def test_metrics_visible_hidden_counts(self):
+        """visible_count and hidden_count computed correctly."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # 6 visible, 4 hidden
+        elements = [
+            create_dom_element(is_visible=True, text=f"Visible {i}")
+            for i in range(6)
+        ] + [
+            create_dom_element(is_visible=False, text=f"Hidden {i}")
+            for i in range(4)
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.visible_count == 6
+        assert result.metrics.hidden_count == 4
+
+    def test_metrics_heading_count(self):
+        """heading_count correctly counts h1-h6 elements."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(tag_name="h1", text="H1"),
+            create_dom_element(tag_name="h2", text="H2"),
+            create_dom_element(tag_name="h3", text="H3"),
+            create_dom_element(tag_name="p", text="Para 1"),
+            create_dom_element(tag_name="p", text="Para 2"),
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.heading_count == 3
+
+    def test_metrics_unique_tag_count(self):
+        """unique_tag_count correctly counts distinct tags."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(tag_name="h1", text="H1"),
+            create_dom_element(tag_name="h1", text="H1 again"),
+            create_dom_element(tag_name="p", text="Para"),
+            create_dom_element(tag_name="span", text="Span"),
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.unique_tag_count == 3  # h1, p, span
+
+    def test_metrics_visibility_ratios(self):
+        """visible_ratio and hidden_ratio computed correctly."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # 8 visible, 2 hidden = 80% visible, 20% hidden
+        elements = [
+            create_dom_element(is_visible=True, text=f"Visible {i}")
+            for i in range(8)
+        ] + [
+            create_dom_element(is_visible=False, text=f"Hidden {i}")
+            for i in range(2)
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.visible_ratio == 0.8
+        assert result.metrics.hidden_ratio == 0.2
+
+    def test_metrics_unique_tags_list(self):
+        """unique_tags contains list of distinct tag names."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(tag_name="h1", text="H1"),
+            create_dom_element(tag_name="p", text="Para"),
+            create_dom_element(tag_name="span", text="Span"),
+            create_dom_element(tag_name="p", text="Another para"),
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert isinstance(result.metrics.unique_tags, list)
+        assert set(result.metrics.unique_tags) == {"h1", "p", "span"}
+
+    def test_metrics_has_headings_true(self):
+        """has_headings is True when headings present."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(tag_name="h1", text="Heading"),
+            create_dom_element(tag_name="p", text="Para"),
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.has_headings is True
+
+    def test_metrics_has_headings_false(self):
+        """has_headings is False when no headings."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(tag_name="p", text="Para 1"),
+            create_dom_element(tag_name="div", text="Div"),
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.has_headings is False
+
+    def test_metrics_tag_distribution(self):
+        """tag_distribution is dict with correct counts."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(tag_name="h1", text="H1"),
+            create_dom_element(tag_name="h1", text="H1 again"),
+            create_dom_element(tag_name="p", text="Para 1"),
+            create_dom_element(tag_name="p", text="Para 2"),
+            create_dom_element(tag_name="p", text="Para 3"),
+            create_dom_element(tag_name="span", text="Span"),
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert isinstance(result.metrics.tag_distribution, dict)
+        assert result.metrics.tag_distribution == {"h1": 2, "p": 3, "span": 1}
+
+    def test_metrics_total_text_length(self):
+        """total_text_length sums all element text lengths."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(text="12345"),  # 5 chars
+            create_dom_element(text="1234567890"),  # 10 chars
+            create_dom_element(text="123"),  # 3 chars
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.total_text_length == 18  # 5 + 10 + 3
+
+    def test_metrics_avg_text_length(self):
+        """avg_text_length computes correct average."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(text="12345"),  # 5 chars
+            create_dom_element(text="1234567890"),  # 10 chars
+            create_dom_element(text="123"),  # 3 chars
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.avg_text_length == 6.0  # 18 / 3
+
+    def test_metrics_min_max_text_length(self):
+        """min_text_length and max_text_length tracked correctly."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(text="123456789012345"),  # 15 chars
+            create_dom_element(text="12"),  # 2 chars
+            create_dom_element(text="12345678"),  # 8 chars
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.min_text_length == 2
+        assert result.metrics.max_text_length == 15
+
+    # === Edge Cases ===
+
+    def test_metrics_empty_elements(self):
+        """Empty elements list produces zero metrics."""
+        from app.quality_assessment import assess_extraction_quality
+
+        result = assess_extraction_quality([])
+
+        assert result.metrics.element_count == 0
+        assert result.metrics.visible_count == 0
+        assert result.metrics.hidden_count == 0
+        assert result.metrics.heading_count == 0
+        assert result.metrics.unique_tag_count == 0
+        assert result.metrics.visible_ratio == 0.0
+        assert result.metrics.hidden_ratio == 0.0
+        assert result.metrics.unique_tags == []
+        assert result.metrics.has_headings is False
+        assert result.metrics.tag_distribution == {}
+        assert result.metrics.total_text_length == 0
+        assert result.metrics.avg_text_length == 0.0
+        assert result.metrics.min_text_length == 0
+        assert result.metrics.max_text_length == 0
+
+    def test_metrics_none_input(self):
+        """None input produces zero metrics."""
+        from app.quality_assessment import assess_extraction_quality
+
+        result = assess_extraction_quality(None)  # type: ignore
+
+        assert result.metrics.element_count == 0
+        assert result.metrics.unique_tags == []
+
+    def test_metrics_all_hidden_elements(self):
+        """All hidden elements produce correct ratios."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(is_visible=False, text=f"Hidden {i}")
+            for i in range(10)
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.visible_count == 0
+        assert result.metrics.hidden_count == 10
+        assert result.metrics.visible_ratio == 0.0
+        assert result.metrics.hidden_ratio == 1.0
+
+    def test_metrics_single_tag_type(self):
+        """Single tag type produces correct distribution."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(tag_name="div", text=f"Div {i}")
+            for i in range(20)
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.unique_tag_count == 1
+        assert result.metrics.unique_tags == ["div"]
+        assert result.metrics.tag_distribution == {"div": 20}
+
+    def test_metrics_empty_text_elements(self):
+        """Elements with empty text produce zero text stats."""
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = [
+            create_dom_element(text="")
+            for _ in range(5)
+        ]
+        result = assess_extraction_quality(elements)
+
+        assert result.metrics.total_text_length == 0
+        assert result.metrics.avg_text_length == 0.0
+        assert result.metrics.min_text_length == 0
+        assert result.metrics.max_text_length == 0
+
+    # === Performance ===
+
+    def test_metrics_computation_performance(self):
+        """Metrics computation adds < 2ms overhead for 100 elements."""
+        import time
+
+        from app.quality_assessment import assess_extraction_quality
+
+        elements = create_diverse_elements(100)
+
+        iterations = 10
+        total_time = 0
+        for _ in range(iterations):
+            start = time.perf_counter()
+            result = assess_extraction_quality(elements)
+            _ = result.metrics  # Access metrics to ensure it's computed
+            end = time.perf_counter()
+            total_time += (end - start) * 1000
+
+        avg_time = total_time / iterations
+        # Original test allows 5ms for 100 elements, we're adding metrics computation
+        # Should still be well under 7ms total (5ms + 2ms overhead)
+        assert avg_time < 7.0, f"Average time {avg_time:.2f}ms exceeds 7ms threshold"
+
+    def test_metrics_backward_compatibility(self):
+        """Existing quality/warnings behavior unchanged."""
+        from app.quality_assessment import assess_extraction_quality
+
+        # Test EMPTY quality
+        result_empty = assess_extraction_quality([])
+        assert result_empty.quality == ExtractionQuality.EMPTY
+        assert any(w.code == "NO_ELEMENTS" for w in result_empty.warnings)
+
+        # Test GOOD quality
+        elements_good = create_diverse_elements(25)
+        result_good = assess_extraction_quality(elements_good)
+        assert result_good.quality == ExtractionQuality.GOOD
