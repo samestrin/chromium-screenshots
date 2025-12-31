@@ -692,3 +692,265 @@ class TestDomExtractionQualityIntegration:
         assert "quality" in properties
         # Warnings field should be in schema
         assert "warnings" in properties
+
+
+class TestApiMetricsIntegration:
+    """Tests for QualityMetrics API integration (Sprint 5.0)."""
+
+    def test_json_endpoint_with_include_metrics_true_returns_metrics(self):
+        """POST /screenshot/json with include_metrics=true returns metrics."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        # Mock the screenshot service with DOM result
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (
+                b"fake_image",
+                100.0,
+                {
+                    "elements": [
+                        {
+                            "selector": "#test",
+                            "xpath": "/html/body/div",
+                            "tag_name": "h1",
+                            "text": "Test heading",
+                            "rect": {"x": 0, "y": 0, "width": 100, "height": 50},
+                            "computed_style": {},
+                            "is_visible": True,
+                            "z_index": 0,
+                        },
+                        {
+                            "selector": "#para",
+                            "xpath": "/html/body/p",
+                            "tag_name": "p",
+                            "text": "Test paragraph",
+                            "rect": {"x": 0, "y": 50, "width": 100, "height": 30},
+                            "computed_style": {},
+                            "is_visible": True,
+                            "z_index": 0,
+                        },
+                    ],
+                    "viewport": {"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+                    "extraction_time_ms": 10.5,
+                    "element_count": 2,
+                },
+            )
+
+            response = client.post(
+                "/screenshot/json",
+                json={
+                    "url": "https://example.com",
+                    "extract_dom": {
+                        "enabled": True,
+                        "include_metrics": True,
+                    },
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                dom_extraction = data.get("dom_extraction")
+                assert dom_extraction is not None
+
+                # Metrics should be populated
+                metrics = dom_extraction.get("metrics")
+                assert metrics is not None
+                assert "element_count" in metrics
+                assert "visible_count" in metrics
+                assert "unique_tags" in metrics
+                assert "tag_distribution" in metrics
+
+    def test_json_endpoint_without_include_metrics_returns_no_metrics(self):
+        """POST /screenshot/json without include_metrics returns no metrics."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (
+                b"fake_image",
+                100.0,
+                {
+                    "elements": [
+                        {
+                            "selector": "#test",
+                            "xpath": "/html/body/div",
+                            "tag_name": "h1",
+                            "text": "Test heading",
+                            "rect": {"x": 0, "y": 0, "width": 100, "height": 50},
+                            "computed_style": {},
+                            "is_visible": True,
+                            "z_index": 0,
+                        },
+                    ],
+                    "viewport": {"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+                    "extraction_time_ms": 10.5,
+                    "element_count": 1,
+                },
+            )
+
+            response = client.post(
+                "/screenshot/json",
+                json={
+                    "url": "https://example.com",
+                    "extract_dom": {
+                        "enabled": True,
+                        # include_metrics NOT specified (should default to False)
+                    },
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                dom_extraction = data.get("dom_extraction")
+                assert dom_extraction is not None
+
+                # Metrics should be null/None
+                metrics = dom_extraction.get("metrics")
+                assert metrics is None
+
+    def test_json_endpoint_include_metrics_false_returns_no_metrics(self):
+        """POST /screenshot/json with include_metrics=false returns no metrics."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (
+                b"fake_image",
+                100.0,
+                {
+                    "elements": [
+                        {
+                            "selector": "#test",
+                            "xpath": "/html/body/div",
+                            "tag_name": "h1",
+                            "text": "Test heading",
+                            "rect": {"x": 0, "y": 0, "width": 100, "height": 50},
+                            "computed_style": {},
+                            "is_visible": True,
+                            "z_index": 0,
+                        },
+                    ],
+                    "viewport": {"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+                    "extraction_time_ms": 10.5,
+                    "element_count": 1,
+                },
+            )
+
+            response = client.post(
+                "/screenshot/json",
+                json={
+                    "url": "https://example.com",
+                    "extract_dom": {
+                        "enabled": True,
+                        "include_metrics": False,
+                    },
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                dom_extraction = data.get("dom_extraction")
+                assert dom_extraction is not None
+
+                # Metrics should be null/None
+                metrics = dom_extraction.get("metrics")
+                assert metrics is None
+
+    def test_metrics_structure_matches_quality_metrics_schema(self):
+        """Metrics structure matches QualityMetrics pydantic model schema."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("app.main.screenshot_service.capture") as mock_capture:
+            mock_capture.return_value = (
+                b"fake_image",
+                100.0,
+                {
+                    "elements": [
+                        {
+                            "selector": "#h1",
+                            "xpath": "/html/body/h1",
+                            "tag_name": "h1",
+                            "text": "Heading",
+                            "rect": {"x": 0, "y": 0, "width": 100, "height": 50},
+                            "computed_style": {},
+                            "is_visible": True,
+                            "z_index": 0,
+                        },
+                        {
+                            "selector": "#p1",
+                            "xpath": "/html/body/p[1]",
+                            "tag_name": "p",
+                            "text": "Paragraph 1",
+                            "rect": {"x": 0, "y": 50, "width": 100, "height": 30},
+                            "computed_style": {},
+                            "is_visible": True,
+                            "z_index": 0,
+                        },
+                        {
+                            "selector": "#p2",
+                            "xpath": "/html/body/p[2]",
+                            "tag_name": "p",
+                            "text": "Paragraph 2",
+                            "rect": {"x": 0, "y": 80, "width": 100, "height": 30},
+                            "computed_style": {},
+                            "is_visible": False,
+                            "z_index": 0,
+                        },
+                    ],
+                    "viewport": {"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+                    "extraction_time_ms": 10.5,
+                    "element_count": 3,
+                },
+            )
+
+            response = client.post(
+                "/screenshot/json",
+                json={
+                    "url": "https://example.com",
+                    "extract_dom": {
+                        "enabled": True,
+                        "include_metrics": True,
+                    },
+                },
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                metrics = data.get("dom_extraction", {}).get("metrics", {})
+
+                # Verify all 15 fields are present with correct values
+                assert metrics.get("element_count") == 3
+                assert metrics.get("visible_count") == 2
+                assert metrics.get("hidden_count") == 1
+                assert metrics.get("heading_count") == 1
+                assert metrics.get("unique_tag_count") == 2
+                assert metrics.get("visible_ratio") == pytest.approx(2/3)
+                assert metrics.get("hidden_ratio") == pytest.approx(1/3)
+                assert set(metrics.get("unique_tags", [])) == {"h1", "p"}
+                assert metrics.get("has_headings") is True
+                assert metrics.get("tag_distribution") == {"h1": 1, "p": 2}
+                assert "total_text_length" in metrics
+                assert "avg_text_length" in metrics
+                assert "min_text_length" in metrics
+                assert "max_text_length" in metrics
+
+    def test_openapi_schema_includes_metrics_field(self):
+        """OpenAPI schema includes metrics field in DomExtractionResult."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.get("/openapi.json")
+        openapi = response.json()
+
+        schemas = openapi.get("components", {}).get("schemas", {})
+        dom_result = schemas.get("DomExtractionResult", {})
+        properties = dom_result.get("properties", {})
+
+        # Metrics field should be in schema
+        assert "metrics" in properties

@@ -206,7 +206,12 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
         # Convert raw dict to DomExtractionResult if present
         dom_extraction = None
         if dom_result:
-            from app.models import BoundingRect, DomElement, DomExtractionResult
+            from app.models import (
+                BoundingRect,
+                DomElement,
+                DomExtractionResult,
+                QualityMetrics,
+            )
             from app.quality_assessment import assess_extraction_quality
 
             elements = [
@@ -226,6 +231,30 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
             # Assess extraction quality
             quality_result = assess_extraction_quality(elements)
 
+            # Convert metrics dataclass to Pydantic model if include_metrics=True
+            metrics = None
+            if (
+                request.extract_dom
+                and request.extract_dom.include_metrics
+                and quality_result.metrics
+            ):
+                metrics = QualityMetrics(
+                    element_count=quality_result.metrics.element_count,
+                    visible_count=quality_result.metrics.visible_count,
+                    hidden_count=quality_result.metrics.hidden_count,
+                    heading_count=quality_result.metrics.heading_count,
+                    unique_tag_count=quality_result.metrics.unique_tag_count,
+                    visible_ratio=quality_result.metrics.visible_ratio,
+                    hidden_ratio=quality_result.metrics.hidden_ratio,
+                    unique_tags=quality_result.metrics.unique_tags,
+                    has_headings=quality_result.metrics.has_headings,
+                    tag_distribution=quality_result.metrics.tag_distribution,
+                    total_text_length=quality_result.metrics.total_text_length,
+                    avg_text_length=quality_result.metrics.avg_text_length,
+                    min_text_length=quality_result.metrics.min_text_length,
+                    max_text_length=quality_result.metrics.max_text_length,
+                )
+
             dom_extraction = DomExtractionResult(
                 elements=elements,
                 viewport=dom_result["viewport"],
@@ -233,6 +262,7 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
                 element_count=dom_result["element_count"],
                 quality=quality_result.quality,
                 warnings=quality_result.warnings,
+                metrics=metrics,
             )
 
         return ScreenshotResponse(
