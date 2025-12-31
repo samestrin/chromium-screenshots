@@ -1453,3 +1453,115 @@ class TestQualityMetricsModel:
 
         assert QualityMetrics.__doc__ is not None
         assert len(QualityMetrics.__doc__) > 10
+
+
+class TestDomExtractionResultMetrics:
+    """Tests for DomExtractionResult.metrics field (Sprint 5.0 Story 01)."""
+
+    def test_dom_extraction_result_has_metrics_field(self):
+        """DomExtractionResult has metrics field."""
+        from app.models import DomExtractionResult
+
+        schema = DomExtractionResult.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "metrics" in properties
+
+    def test_dom_extraction_result_metrics_defaults_to_none(self):
+        """DomExtractionResult.metrics defaults to None."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+            extraction_time_ms=10.5,
+            element_count=0,
+        )
+        assert result.metrics is None
+
+    def test_dom_extraction_result_metrics_accepts_quality_metrics(self):
+        """DomExtractionResult.metrics accepts QualityMetrics instance."""
+        from app.models import DomExtractionResult, QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=5,
+            visible_count=4,
+            hidden_count=1,
+            heading_count=1,
+            unique_tag_count=3,
+            visible_ratio=0.8,
+            hidden_ratio=0.2,
+            unique_tags=["h1", "p", "span"],
+            has_headings=True,
+            tag_distribution={"h1": 1, "p": 3, "span": 1},
+            total_text_length=250,
+            avg_text_length=50.0,
+            min_text_length=10,
+            max_text_length=100,
+        )
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+            extraction_time_ms=10.5,
+            element_count=5,
+            metrics=metrics,
+        )
+        assert result.metrics is not None
+        assert result.metrics.element_count == 5
+        assert result.metrics.visible_ratio == 0.8
+
+    def test_dom_extraction_result_metrics_serializes_to_dict(self):
+        """DomExtractionResult with metrics serializes correctly."""
+        from app.models import DomExtractionResult, QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=5,
+            visible_count=4,
+            hidden_count=1,
+            heading_count=1,
+            unique_tag_count=3,
+            visible_ratio=0.8,
+            hidden_ratio=0.2,
+            unique_tags=["h1", "p", "span"],
+            has_headings=True,
+            tag_distribution={"h1": 1, "p": 3, "span": 1},
+            total_text_length=250,
+            avg_text_length=50.0,
+            min_text_length=10,
+            max_text_length=100,
+        )
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+            extraction_time_ms=10.5,
+            element_count=5,
+            metrics=metrics,
+        )
+        data = result.model_dump()
+        assert "metrics" in data
+        assert data["metrics"]["element_count"] == 5
+        assert data["metrics"]["visible_ratio"] == 0.8
+
+    def test_dom_extraction_result_metrics_none_serialization(self):
+        """DomExtractionResult with metrics=None serializes correctly."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+            extraction_time_ms=10.5,
+            element_count=0,
+        )
+        data = result.model_dump()
+        # metrics should be None (not omitted) in model_dump
+        assert "metrics" in data
+        assert data["metrics"] is None
+
+    def test_dom_extraction_result_metrics_field_has_description(self):
+        """DomExtractionResult.metrics has description for OpenAPI."""
+        from app.models import DomExtractionResult
+
+        schema = DomExtractionResult.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("metrics", {})

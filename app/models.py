@@ -72,6 +72,10 @@ class DomExtractionResult(BaseModel):
         default_factory=list,
         description="Warnings about potential issues with the extraction",
     )
+    metrics: Optional["QualityMetrics"] = Field(
+        default=None,
+        description="Detailed quality metrics, present when include_metrics=true",
+    )
 
 
 class DomExtractionOptions(BaseModel):
