@@ -1002,3 +1002,144 @@ class TestScreenshotRequestStorage:
         assert len(request.cookies) == 1
         assert request.localStorage == {"wasp:sessionId": "abc123"}
         assert request.sessionStorage == {"temp": "data"}
+
+
+class TestDomExtractionOptionsMetricsFields:
+    """Tests for DomExtractionOptions opt-in metrics/vision hint fields."""
+
+    def test_dom_extraction_options_has_include_metrics_field(self):
+        """DomExtractionOptions has include_metrics field."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert hasattr(options, "include_metrics")
+
+    def test_dom_extraction_options_include_metrics_defaults_false(self):
+        """DomExtractionOptions include_metrics defaults to False."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert options.include_metrics is False
+
+    def test_dom_extraction_options_include_metrics_accepts_true(self):
+        """DomExtractionOptions include_metrics accepts True."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(include_metrics=True)
+        assert options.include_metrics is True
+
+    def test_dom_extraction_options_has_include_vision_hints_field(self):
+        """DomExtractionOptions has include_vision_hints field."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert hasattr(options, "include_vision_hints")
+
+    def test_dom_extraction_options_include_vision_hints_defaults_false(self):
+        """DomExtractionOptions include_vision_hints defaults to False."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert options.include_vision_hints is False
+
+    def test_dom_extraction_options_include_vision_hints_accepts_true(self):
+        """DomExtractionOptions include_vision_hints accepts True."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(include_vision_hints=True)
+        assert options.include_vision_hints is True
+
+    def test_dom_extraction_options_has_target_vision_model_field(self):
+        """DomExtractionOptions has target_vision_model field."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert hasattr(options, "target_vision_model")
+
+    def test_dom_extraction_options_target_vision_model_defaults_none(self):
+        """DomExtractionOptions target_vision_model defaults to None."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert options.target_vision_model is None
+
+    def test_dom_extraction_options_target_vision_model_accepts_claude(self):
+        """DomExtractionOptions target_vision_model accepts 'claude'."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(target_vision_model="claude")
+        assert options.target_vision_model == "claude"
+
+    def test_dom_extraction_options_target_vision_model_accepts_gemini(self):
+        """DomExtractionOptions target_vision_model accepts 'gemini'."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(target_vision_model="gemini")
+        assert options.target_vision_model == "gemini"
+
+    def test_dom_extraction_options_target_vision_model_accepts_gpt4v(self):
+        """DomExtractionOptions target_vision_model accepts 'gpt4v'."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(target_vision_model="gpt4v")
+        assert options.target_vision_model == "gpt4v"
+
+    def test_dom_extraction_options_target_vision_model_accepts_qwen(self):
+        """DomExtractionOptions target_vision_model accepts 'qwen-vl-max'."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(target_vision_model="qwen-vl-max")
+        assert options.target_vision_model == "qwen-vl-max"
+
+    def test_dom_extraction_options_target_vision_model_invalid_raises_error(self):
+        """DomExtractionOptions target_vision_model rejects invalid values."""
+        from app.models import DomExtractionOptions
+
+        with pytest.raises(ValidationError) as exc_info:
+            DomExtractionOptions(target_vision_model="invalid_model")
+        assert "target_vision_model" in str(exc_info.value).lower()
+
+    def test_dom_extraction_options_backward_compatibility(self):
+        """DomExtractionOptions works without new fields (backward compat)."""
+        from app.models import DomExtractionOptions
+
+        # Existing usage should still work
+        options = DomExtractionOptions(
+            enabled=True,
+            selectors=["h1", "p"],
+            include_hidden=False,
+            min_text_length=1,
+            max_elements=500
+        )
+        # Original fields work
+        assert options.enabled is True
+        assert options.selectors == ["h1", "p"]
+        # New fields have defaults
+        assert options.include_metrics is False
+        assert options.include_vision_hints is False
+        assert options.target_vision_model is None
+
+    def test_dom_extraction_options_all_new_fields_together(self):
+        """DomExtractionOptions accepts all new fields together."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(
+            enabled=True,
+            include_metrics=True,
+            include_vision_hints=True,
+            target_vision_model="claude"
+        )
+        assert options.include_metrics is True
+        assert options.include_vision_hints is True
+        assert options.target_vision_model == "claude"
+
+    def test_dom_extraction_options_new_fields_have_descriptions(self):
+        """DomExtractionOptions new fields have descriptions for OpenAPI."""
+        from app.models import DomExtractionOptions
+
+        schema = DomExtractionOptions.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("include_metrics", {})
+        assert "description" in properties.get("include_vision_hints", {})
+        assert "description" in properties.get("target_vision_model", {})

@@ -14,6 +14,19 @@ class SameSitePolicy(str, Enum):
     NONE = "None"
 
 
+class VisionModel(str, Enum):
+    """Supported Vision AI models for optimization hints.
+
+    Used to select model-specific thresholds for image sizing
+    and tiling recommendations.
+    """
+
+    CLAUDE = "claude"
+    GEMINI = "gemini"
+    GPT4V = "gpt4v"
+    QWEN_VL_MAX = "qwen-vl-max"
+
+
 class BoundingRect(BaseModel):
     """Bounding rectangle for DOM element positioning."""
 
@@ -87,6 +100,18 @@ class DomExtractionOptions(BaseModel):
     max_elements: int = Field(
         default=500,
         description="Maximum number of elements to return",
+    )
+    include_metrics: bool = Field(
+        default=False,
+        description="Include detailed quality metrics in response",
+    )
+    include_vision_hints: bool = Field(
+        default=False,
+        description="Include Vision AI optimization hints",
+    )
+    target_vision_model: Optional[VisionModel] = Field(
+        default=None,
+        description="Target Vision AI model for hints: 'claude', 'gemini', 'gpt4v', 'qwen-vl-max'",
     )
 
 
