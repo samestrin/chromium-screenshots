@@ -191,6 +191,93 @@ class QualityWarning(BaseModel):
     )
 
 
+class QualityMetrics(BaseModel):
+    """Detailed quality metrics for DOM extraction results.
+
+    Provides comprehensive statistics about extracted DOM elements,
+    including element counts, visibility ratios, tag distribution,
+    and text statistics. Used by Vision AI integrations to assess
+    extraction quality and optimize processing.
+    """
+
+    # === Element Counts ===
+    element_count: int = Field(
+        ...,
+        ge=0,
+        description="Total number of DOM elements extracted",
+    )
+    visible_count: int = Field(
+        ...,
+        ge=0,
+        description="Number of visible elements (not hidden via CSS)",
+    )
+    hidden_count: int = Field(
+        ...,
+        ge=0,
+        description="Number of hidden elements (display:none or visibility:hidden)",
+    )
+    heading_count: int = Field(
+        ...,
+        ge=0,
+        description="Number of heading elements (h1-h6) extracted",
+    )
+    unique_tag_count: int = Field(
+        ...,
+        ge=0,
+        description="Count of unique HTML tag types in extraction",
+    )
+
+    # === Visibility Ratios ===
+    visible_ratio: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Ratio of visible elements (0.0 to 1.0)",
+    )
+    hidden_ratio: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Ratio of hidden elements (0.0 to 1.0)",
+    )
+
+    # === Tag Analysis ===
+    unique_tags: list[str] = Field(
+        ...,
+        description="List of unique HTML tag names found (e.g., ['h1', 'p', 'span'])",
+    )
+    has_headings: bool = Field(
+        ...,
+        description="Whether any heading elements (h1-h6) were found",
+    )
+    tag_distribution: dict[str, int] = Field(
+        ...,
+        description="Count of each tag type (e.g., {'h1': 2, 'p': 10})",
+    )
+
+    # === Text Statistics ===
+    total_text_length: int = Field(
+        ...,
+        ge=0,
+        description="Total character count of all element text content",
+    )
+    avg_text_length: float = Field(
+        ...,
+        ge=0.0,
+        description="Average text length per element in characters",
+    )
+    min_text_length: int = Field(
+        ...,
+        ge=0,
+        description="Minimum text length among all elements",
+    )
+    max_text_length: int = Field(
+        ...,
+        ge=0,
+        description="Maximum text length among all elements",
+    )
+
+
 class ScreenshotType(str, Enum):
     """Screenshot capture type."""
 

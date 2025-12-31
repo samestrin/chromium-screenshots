@@ -1143,3 +1143,313 @@ class TestDomExtractionOptionsMetricsFields:
         assert "description" in properties.get("include_metrics", {})
         assert "description" in properties.get("include_vision_hints", {})
         assert "description" in properties.get("target_vision_model", {})
+
+
+class TestQualityMetricsModel:
+    """Tests for QualityMetrics Pydantic model (Sprint 5.0 Story 01)."""
+
+    # === Model Existence and Structure ===
+
+    def test_quality_metrics_model_exists(self):
+        """QualityMetrics model exists and is importable."""
+        from app.models import QualityMetrics
+
+        assert QualityMetrics is not None
+
+    def test_quality_metrics_has_count_fields(self):
+        """QualityMetrics has all 5 count fields."""
+        from app.models import QualityMetrics
+
+        schema = QualityMetrics.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "element_count" in properties
+        assert "visible_count" in properties
+        assert "hidden_count" in properties
+        assert "heading_count" in properties
+        assert "unique_tag_count" in properties
+
+    def test_quality_metrics_has_ratio_fields(self):
+        """QualityMetrics has both ratio fields."""
+        from app.models import QualityMetrics
+
+        schema = QualityMetrics.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "visible_ratio" in properties
+        assert "hidden_ratio" in properties
+
+    def test_quality_metrics_has_tag_analysis_fields(self):
+        """QualityMetrics has tag analysis fields."""
+        from app.models import QualityMetrics
+
+        schema = QualityMetrics.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "unique_tags" in properties
+        assert "has_headings" in properties
+        assert "tag_distribution" in properties
+
+    def test_quality_metrics_has_text_stats_fields(self):
+        """QualityMetrics has text statistics fields."""
+        from app.models import QualityMetrics
+
+        schema = QualityMetrics.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "total_text_length" in properties
+        assert "avg_text_length" in properties
+        assert "min_text_length" in properties
+        assert "max_text_length" in properties
+
+    # === Model Instantiation ===
+
+    def test_quality_metrics_instantiation_with_valid_data(self):
+        """QualityMetrics can be instantiated with valid data."""
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=25,
+            visible_count=20,
+            hidden_count=5,
+            heading_count=3,
+            unique_tag_count=6,
+            visible_ratio=0.8,
+            hidden_ratio=0.2,
+            unique_tags=["h1", "h2", "p", "span", "a", "li"],
+            has_headings=True,
+            tag_distribution={"h1": 1, "h2": 2, "p": 10, "span": 5, "a": 4, "li": 3},
+            total_text_length=1500,
+            avg_text_length=60.0,
+            min_text_length=5,
+            max_text_length=200,
+        )
+        assert metrics.element_count == 25
+        assert metrics.visible_count == 20
+        assert metrics.visible_ratio == 0.8
+        assert metrics.has_headings is True
+
+    def test_quality_metrics_empty_extraction(self):
+        """QualityMetrics handles empty extraction (zero elements)."""
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=0,
+            visible_count=0,
+            hidden_count=0,
+            heading_count=0,
+            unique_tag_count=0,
+            visible_ratio=0.0,
+            hidden_ratio=0.0,
+            unique_tags=[],
+            has_headings=False,
+            tag_distribution={},
+            total_text_length=0,
+            avg_text_length=0.0,
+            min_text_length=0,
+            max_text_length=0,
+        )
+        assert metrics.element_count == 0
+        assert metrics.unique_tags == []
+        assert metrics.tag_distribution == {}
+
+    def test_quality_metrics_all_hidden_elements(self):
+        """QualityMetrics handles all hidden elements case."""
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=10,
+            visible_count=0,
+            hidden_count=10,
+            heading_count=0,
+            unique_tag_count=1,
+            visible_ratio=0.0,
+            hidden_ratio=1.0,
+            unique_tags=["div"],
+            has_headings=False,
+            tag_distribution={"div": 10},
+            total_text_length=0,
+            avg_text_length=0.0,
+            min_text_length=0,
+            max_text_length=0,
+        )
+        assert metrics.hidden_ratio == 1.0
+        assert metrics.visible_ratio == 0.0
+        assert metrics.hidden_count == 10
+
+    def test_quality_metrics_single_tag_type(self):
+        """QualityMetrics handles single tag type extraction."""
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=20,
+            visible_count=20,
+            hidden_count=0,
+            heading_count=0,
+            unique_tag_count=1,
+            visible_ratio=1.0,
+            hidden_ratio=0.0,
+            unique_tags=["p"],
+            has_headings=False,
+            tag_distribution={"p": 20},
+            total_text_length=1000,
+            avg_text_length=50.0,
+            min_text_length=10,
+            max_text_length=100,
+        )
+        assert metrics.unique_tags == ["p"]
+        assert metrics.unique_tag_count == 1
+        assert metrics.tag_distribution == {"p": 20}
+
+    # === Field Validation ===
+
+    def test_quality_metrics_count_fields_reject_negative(self):
+        """QualityMetrics count fields reject negative values."""
+        from app.models import QualityMetrics
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityMetrics(
+                element_count=-1,
+                visible_count=0,
+                hidden_count=0,
+                heading_count=0,
+                unique_tag_count=0,
+                visible_ratio=0.0,
+                hidden_ratio=0.0,
+                unique_tags=[],
+                has_headings=False,
+                tag_distribution={},
+                total_text_length=0,
+                avg_text_length=0.0,
+                min_text_length=0,
+                max_text_length=0,
+            )
+        assert "element_count" in str(exc_info.value).lower()
+
+    def test_quality_metrics_ratio_rejects_above_one(self):
+        """QualityMetrics ratio fields reject values > 1.0."""
+        from app.models import QualityMetrics
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityMetrics(
+                element_count=10,
+                visible_count=10,
+                hidden_count=0,
+                heading_count=0,
+                unique_tag_count=1,
+                visible_ratio=1.5,  # Invalid: > 1.0
+                hidden_ratio=0.0,
+                unique_tags=["p"],
+                has_headings=False,
+                tag_distribution={"p": 10},
+                total_text_length=100,
+                avg_text_length=10.0,
+                min_text_length=5,
+                max_text_length=20,
+            )
+        assert "visible_ratio" in str(exc_info.value).lower()
+
+    def test_quality_metrics_ratio_rejects_below_zero(self):
+        """QualityMetrics ratio fields reject values < 0.0."""
+        from app.models import QualityMetrics
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityMetrics(
+                element_count=10,
+                visible_count=10,
+                hidden_count=0,
+                heading_count=0,
+                unique_tag_count=1,
+                visible_ratio=1.0,
+                hidden_ratio=-0.1,  # Invalid: < 0.0
+                unique_tags=["p"],
+                has_headings=False,
+                tag_distribution={"p": 10},
+                total_text_length=100,
+                avg_text_length=10.0,
+                min_text_length=5,
+                max_text_length=20,
+            )
+        assert "hidden_ratio" in str(exc_info.value).lower()
+
+    # === Serialization ===
+
+    def test_quality_metrics_serializes_to_dict(self):
+        """QualityMetrics serializes to dictionary correctly."""
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=5,
+            visible_count=4,
+            hidden_count=1,
+            heading_count=1,
+            unique_tag_count=3,
+            visible_ratio=0.8,
+            hidden_ratio=0.2,
+            unique_tags=["h1", "p", "span"],
+            has_headings=True,
+            tag_distribution={"h1": 1, "p": 3, "span": 1},
+            total_text_length=250,
+            avg_text_length=50.0,
+            min_text_length=10,
+            max_text_length=100,
+        )
+        data = metrics.model_dump()
+
+        assert data["element_count"] == 5
+        assert data["visible_ratio"] == 0.8
+        assert data["unique_tags"] == ["h1", "p", "span"]
+        assert data["tag_distribution"] == {"h1": 1, "p": 3, "span": 1}
+        assert data["has_headings"] is True
+
+    def test_quality_metrics_serializes_to_json(self):
+        """QualityMetrics serializes to JSON string correctly."""
+        from app.models import QualityMetrics
+        import json
+
+        metrics = QualityMetrics(
+            element_count=5,
+            visible_count=4,
+            hidden_count=1,
+            heading_count=1,
+            unique_tag_count=3,
+            visible_ratio=0.8,
+            hidden_ratio=0.2,
+            unique_tags=["h1", "p", "span"],
+            has_headings=True,
+            tag_distribution={"h1": 1, "p": 3, "span": 1},
+            total_text_length=250,
+            avg_text_length=50.0,
+            min_text_length=10,
+            max_text_length=100,
+        )
+        json_str = metrics.model_dump_json()
+        data = json.loads(json_str)
+
+        assert data["element_count"] == 5
+        assert data["visible_ratio"] == 0.8
+        assert isinstance(data["unique_tags"], list)
+        assert isinstance(data["tag_distribution"], dict)
+
+    # === Field Descriptions ===
+
+    def test_quality_metrics_fields_have_descriptions(self):
+        """QualityMetrics fields have descriptions for OpenAPI."""
+        from app.models import QualityMetrics
+
+        schema = QualityMetrics.model_json_schema()
+        properties = schema.get("properties", {})
+
+        # Check key fields have descriptions
+        assert "description" in properties.get("element_count", {})
+        assert "description" in properties.get("visible_ratio", {})
+        assert "description" in properties.get("unique_tags", {})
+        assert "description" in properties.get("tag_distribution", {})
+        assert "description" in properties.get("avg_text_length", {})
+
+    def test_quality_metrics_has_docstring(self):
+        """QualityMetrics model has a docstring."""
+        from app.models import QualityMetrics
+
+        assert QualityMetrics.__doc__ is not None
+        assert len(QualityMetrics.__doc__) > 10
