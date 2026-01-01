@@ -2,21 +2,17 @@
 
 import pytest
 
-# Import will fail until module is created - this is expected for RED phase
-try:
-    from app.tiling import (
-        calculate_tile_grid,
-        TileBounds,
-    )
-except ImportError:
-    calculate_tile_grid = None
-    TileBounds = None
+from app.tiling import (
+    calculate_tile_grid,
+    TileBounds,
+    VISION_AI_PRESETS,
+    apply_vision_preset,
+)
 
 
 class TestCalculateTileGrid:
     """Tests for calculate_tile_grid function."""
 
-    @pytest.mark.skipif(calculate_tile_grid is None, reason="Module not implemented yet")
     def test_calculate_tile_grid_standard(self):
         """Test standard case: 3000px page, 800px viewport, 50px overlap."""
         tiles = calculate_tile_grid(
@@ -39,7 +35,6 @@ class TestCalculateTileGrid:
             curr_start = tiles[i].y
             assert prev_end - curr_start == 50  # overlap
 
-    @pytest.mark.skipif(calculate_tile_grid is None, reason="Module not implemented yet")
     def test_calculate_tile_grid_single_tile(self):
         """Test page smaller than viewport returns single tile."""
         tiles = calculate_tile_grid(
@@ -52,7 +47,6 @@ class TestCalculateTileGrid:
         assert tiles[0].y == 0
         assert tiles[0].height == 500  # Clipped to page height
 
-    @pytest.mark.skipif(calculate_tile_grid is None, reason="Module not implemented yet")
     def test_calculate_tile_grid_exact_multiple(self):
         """Test page that divides evenly into tiles."""
         tiles = calculate_tile_grid(
@@ -68,7 +62,6 @@ class TestCalculateTileGrid:
         last_tile = tiles[-1]
         assert last_tile.y + last_tile.height >= 1500
 
-    @pytest.mark.skipif(calculate_tile_grid is None, reason="Module not implemented yet")
     def test_calculate_tile_grid_with_overlap(self):
         """Test overlap math is correct."""
         tiles = calculate_tile_grid(
@@ -88,7 +81,6 @@ class TestCalculateTileGrid:
             overlap_region = tile0_end - tile1_start
             assert overlap_region == 100
 
-    @pytest.mark.skipif(calculate_tile_grid is None, reason="Module not implemented yet")
     def test_calculate_tile_grid_invalid_overlap(self):
         """Test overlap >= viewport raises ValueError."""
         with pytest.raises(ValueError, match="overlap"):
@@ -105,7 +97,6 @@ class TestCalculateTileGrid:
                 overlap=900,  # Greater than viewport
             )
 
-    @pytest.mark.skipif(calculate_tile_grid is None, reason="Module not implemented yet")
     def test_calculate_tile_grid_invalid_dimensions(self):
         """Test negative values raise ValueError."""
         with pytest.raises(ValueError):
@@ -129,7 +120,6 @@ class TestCalculateTileGrid:
                 overlap=-50,
             )
 
-    @pytest.mark.skipif(calculate_tile_grid is None, reason="Module not implemented yet")
     def test_calculate_tile_grid_with_width(self):
         """Test horizontal tiling for wide pages."""
         tiles = calculate_tile_grid(
@@ -144,7 +134,6 @@ class TestCalculateTileGrid:
         columns = set(t.column for t in tiles)
         assert len(columns) >= 2
 
-    @pytest.mark.skipif(calculate_tile_grid is None, reason="Module not implemented yet")
     def test_tile_bounds_attributes(self):
         """Test TileBounds has required attributes."""
         tiles = calculate_tile_grid(
@@ -171,7 +160,6 @@ class TestCalculateTileGrid:
 class TestTileBoundsModel:
     """Tests for TileBounds Pydantic model."""
 
-    @pytest.mark.skipif(TileBounds is None, reason="Model not implemented yet")
     def test_tile_bounds_creation(self):
         """Test creating valid TileBounds."""
         bounds = TileBounds(
@@ -188,7 +176,6 @@ class TestTileBoundsModel:
         assert bounds.width == 1200
         assert bounds.height == 800
 
-    @pytest.mark.skipif(TileBounds is None, reason="Model not implemented yet")
     def test_tile_bounds_json_serialization(self):
         """Test TileBounds serializes to JSON correctly."""
         bounds = TileBounds(
