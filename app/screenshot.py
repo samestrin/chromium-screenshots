@@ -21,7 +21,7 @@ from .models import (
     TiledScreenshotRequest,
     TiledScreenshotResponse,
 )
-from .tiling import calculate_tile_grid
+from .tiling import apply_vision_preset, calculate_tile_grid
 
 
 def extract_domain_from_url(url: str) -> Optional[str]:
@@ -371,9 +371,27 @@ class ScreenshotService:
         if not self._browser:
             await self.initialize()
 
+        # Apply Vision AI preset if specified
+        effective_tile_width = request.tile_width
+        effective_tile_height = request.tile_height
+        effective_overlap = request.overlap
+        applied_preset = None
+
+        if request.target_vision_model:
+            preset_config = apply_vision_preset(
+                request.target_vision_model,
+                tile_width=request.tile_width if request.tile_width != 1568 else None,
+                tile_height=request.tile_height if request.tile_height != 1568 else None,
+                overlap=request.overlap if request.overlap != 50 else None,
+            )
+            effective_tile_width = preset_config["tile_width"]
+            effective_tile_height = preset_config["tile_height"]
+            effective_overlap = preset_config["overlap"]
+            applied_preset = request.target_vision_model.lower()
+
         # Create context with tile dimensions as viewport
         context = await self._browser.new_context(
-            viewport={"width": request.tile_width, "height": request.tile_height},
+            viewport={"width": effective_tile_width, "height": effective_tile_height},
             color_scheme="dark" if request.dark_mode else "light",
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -462,15 +480,24 @@ class ScreenshotService:
             # Calculate tile grid
             tile_bounds_list = calculate_tile_grid(
                 page_height=page_height,
-                viewport_height=request.tile_height,
-                overlap=request.overlap,
+                viewport_height=effective_tile_height,
+                overlap=effective_overlap,
                 page_width=page_width,
-                viewport_width=request.tile_width,
+                viewport_width=effective_tile_width,
             )
 
-            # Apply max_tile_count limit
+            # Validate max_tile_count limit - return HTTP 400 if exceeded
             if len(tile_bounds_list) > request.max_tile_count:
-                tile_bounds_list = tile_bounds_list[: request.max_tile_count]
+                from fastapi import HTTPException
+
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Page requires {len(tile_bounds_list)} tiles but max_tile_count "
+                        f"is {request.max_tile_count}. Increase max_tile_count (max 1000) "
+                        f"or use larger tile dimensions."
+                    ),
+                )
 
             # Capture tiles
             tiles: list[Tile] = []
@@ -480,10 +507,16 @@ class ScreenshotService:
             if request.format == ImageFormat.JPEG:
                 screenshot_options["quality"] = request.quality
 
+            # Calculate per-tile wait time (use request value or 50ms minimum)
+            if request.wait_for_timeout > 0:
+                per_tile_wait = max(50, request.wait_for_timeout // len(tile_bounds_list))
+            else:
+                per_tile_wait = 50
+
             for bounds in tile_bounds_list:
                 # Scroll to tile position
                 await page.evaluate(f"window.scrollTo({bounds.x}, {bounds.y})")
-                await page.wait_for_timeout(50)  # Brief wait for scroll to settle
+                await page.wait_for_timeout(per_tile_wait)  # Wait for lazy loading
 
                 # Capture screenshot with clip region
                 screenshot_bytes = await page.screenshot(
@@ -516,6 +549,24 @@ class ScreenshotService:
                         """
                     )
 
+                    # Add low element warning if fewer than 5 elements in tile
+                    elem_count = dom_extraction.get("element_count", 0)
+                    if elem_count < 5:
+                        if "warnings" not in dom_extraction:
+                            dom_extraction["warnings"] = []
+                        dom_extraction["warnings"].append({
+                            "code": "low_element_count_per_tile",
+                            "message": (
+                                f"Tile {bounds.index} has only {elem_count} elements "
+                                f"(threshold: 5)"
+                            ),
+                            "severity": "info",
+                            "suggestion": (
+                                "Consider using different selectors or checking "
+                                "if page content loaded correctly"
+                            ),
+                        })
+
                 tile = Tile(
                     index=bounds.index,
                     row=bounds.row,
@@ -533,12 +584,12 @@ class ScreenshotService:
 
             # Build tile config
             tile_config = TileConfig(
-                tile_width=request.tile_width,
-                tile_height=request.tile_height,
-                overlap=request.overlap,
+                tile_width=effective_tile_width,
+                tile_height=effective_tile_height,
+                overlap=effective_overlap,
                 total_tiles=len(tiles),
                 grid={"rows": max_row + 1, "columns": max_col + 1},
-                applied_preset=request.target_vision_model,
+                applied_preset=applied_preset,
             )
 
             # Build coordinate mapping
