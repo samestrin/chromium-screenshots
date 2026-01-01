@@ -592,6 +592,115 @@ class TestDomElementModel:
         assert "description" in properties.get("is_visible", {})
         assert "description" in properties.get("z_index", {})
 
+    # Sprint 6.0: DOM Element Tile Enrichment Tests
+
+    def test_dom_element_tile_index_optional(self):
+        """DomElement accepts optional tile_index field."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=10, y=20, width=100, height=50)
+        element = DomElement(
+            selector="#main",
+            xpath="/html/body/div",
+            tag_name="div",
+            text="Content",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=0,
+            tile_index=2,
+        )
+        assert element.tile_index == 2
+
+    def test_dom_element_tile_index_defaults_to_none(self):
+        """DomElement tile_index defaults to None."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=10, y=20, width=100, height=50)
+        element = DomElement(
+            selector="#main",
+            xpath="/html/body/div",
+            tag_name="div",
+            text="Content",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=0,
+        )
+        assert element.tile_index is None
+
+    def test_dom_element_tile_relative_rect_optional(self):
+        """DomElement accepts optional tile_relative_rect field."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=100, y=950, width=100, height=50)
+        tile_rect = BoundingRect(x=100, y=200, width=100, height=50)
+        element = DomElement(
+            selector="#main",
+            xpath="/html/body/div",
+            tag_name="div",
+            text="Content",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=0,
+            tile_relative_rect=tile_rect,
+        )
+        assert element.tile_relative_rect is not None
+        assert element.tile_relative_rect.y == 200
+
+    def test_dom_element_tile_relative_rect_defaults_to_none(self):
+        """DomElement tile_relative_rect defaults to None."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=10, y=20, width=100, height=50)
+        element = DomElement(
+            selector="#main",
+            xpath="/html/body/div",
+            tag_name="div",
+            text="Content",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=0,
+        )
+        assert element.tile_relative_rect is None
+
+    def test_dom_element_is_fixed_optional(self):
+        """DomElement accepts optional is_fixed field."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=0, y=0, width=100, height=50)
+        element = DomElement(
+            selector="#header",
+            xpath="/html/body/header",
+            tag_name="header",
+            text="Fixed Header",
+            rect=rect,
+            computed_style={"position": "fixed"},
+            is_visible=True,
+            z_index=100,
+            is_fixed=True,
+        )
+        assert element.is_fixed is True
+
+    def test_dom_element_is_fixed_defaults_to_false(self):
+        """DomElement is_fixed defaults to False."""
+        from app.models import BoundingRect, DomElement
+
+        rect = BoundingRect(x=10, y=20, width=100, height=50)
+        element = DomElement(
+            selector="#main",
+            xpath="/html/body/div",
+            tag_name="div",
+            text="Content",
+            rect=rect,
+            computed_style={},
+            is_visible=True,
+            z_index=0,
+        )
+        assert element.is_fixed is False
+
 
 class TestDomExtractionResultModel:
     """Tests for DomExtractionResult Pydantic model."""

@@ -53,6 +53,19 @@ class DomElement(BaseModel):
     is_visible: bool = Field(..., description="Whether the element is visible")
     z_index: int = Field(..., description="Stacking order (z-index) of the element")
 
+    # Tiling-related fields (Sprint 6.0)
+    tile_index: Optional[int] = Field(
+        default=None, description="Index of tile containing this element (for tiled captures)"
+    )
+    tile_relative_rect: Optional[BoundingRect] = Field(
+        default=None,
+        description="Element position relative to tile origin (for tiled captures)",
+    )
+    is_fixed: bool = Field(
+        default=False,
+        description="Whether element has position:fixed (appears in all tiles)",
+    )
+
 
 class DomExtractionResult(BaseModel):
     """Result of DOM element extraction."""

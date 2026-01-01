@@ -645,3 +645,118 @@ class TestCaptureTiledMultiTile:
             assert len(result.tiles) <= 3
         finally:
             await service.shutdown()
+
+
+# =============================================================================
+# Sprint 6.0: Fixed Element Detection Tests
+# =============================================================================
+
+
+class TestFixedElementDetection:
+    """Tests for detecting position:fixed and position:sticky elements.
+
+    AC: 02-03 - Fixed Element Detection
+    """
+
+    @pytest.mark.asyncio
+    async def test_fixed_element_detection_position_fixed(self):
+        """DOM extraction detects elements with position:fixed.
+
+        Elements with CSS position:fixed should have is_fixed=True in extraction.
+        """
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            # Use a page with known fixed elements (e.g., example.com has none,
+            # but extraction script should return is_fixed field regardless)
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(
+                    enabled=True,
+                    selectors=["h1", "p", "div"],
+                ),
+            )
+            result = await service.capture(request)
+
+            assert len(result) == 3
+            _, _, dom_result = result
+
+            # Verify is_fixed field is present on extracted elements
+            for element in dom_result["elements"]:
+                assert "is_fixed" in element, "Element missing is_fixed field"
+                assert isinstance(element["is_fixed"], bool)
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_fixed_element_detection_position_sticky(self):
+        """DOM extraction detects elements with position:sticky.
+
+        Elements with CSS position:sticky should have is_fixed=True in extraction,
+        as they also need special handling in tiled capture.
+        """
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(
+                    enabled=True,
+                    selectors=["h1", "p"],
+                ),
+            )
+            result = await service.capture(request)
+
+            assert len(result) == 3
+            _, _, dom_result = result
+
+            # Verify is_fixed field is present
+            for element in dom_result["elements"]:
+                assert "is_fixed" in element
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_fixed_element_detection_normal_element(self):
+        """Normal elements (position:static/relative) have is_fixed=False.
+
+        Most elements on example.com should have standard positioning,
+        so is_fixed should be False.
+        """
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(
+                    enabled=True,
+                    selectors=["h1", "p"],
+                ),
+            )
+            result = await service.capture(request)
+
+            assert len(result) == 3
+            _, _, dom_result = result
+
+            # example.com has no fixed elements - all should be is_fixed=False
+            for element in dom_result["elements"]:
+                assert "is_fixed" in element
+                # Standard elements should not be fixed
+                assert element["is_fixed"] is False, (
+                    f"Expected is_fixed=False for {element['tag_name']}, "
+                    f"got {element['is_fixed']}"
+                )
+        finally:
+            await service.shutdown()

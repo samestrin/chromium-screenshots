@@ -298,3 +298,138 @@ class TestCoordinateAdjustment:
 
         # Original should be unchanged
         assert original_rect == original_copy
+
+
+# =============================================================================
+# Sprint 6.0: Vision AI Presets Tests (Phase 3)
+# =============================================================================
+
+
+class TestVisionAIPresets:
+    """Tests for Vision AI preset configuration.
+
+    AC: 03-01 - Vision AI Presets Config
+    """
+
+    def test_vision_ai_presets_structure(self):
+        """VISION_AI_PRESETS has correct structure with required keys."""
+        assert "claude" in VISION_AI_PRESETS
+        assert "gemini" in VISION_AI_PRESETS
+        assert "gpt4v" in VISION_AI_PRESETS
+
+        # Each preset should have tile_width, tile_height, overlap
+        for name, preset in VISION_AI_PRESETS.items():
+            assert "tile_width" in preset, f"{name} missing tile_width"
+            assert "tile_height" in preset, f"{name} missing tile_height"
+            assert "overlap" in preset, f"{name} missing overlap"
+
+    def test_claude_preset_values(self):
+        """Claude preset uses 1568x1568 with 50px overlap."""
+        preset = VISION_AI_PRESETS["claude"]
+        assert preset["tile_width"] == 1568
+        assert preset["tile_height"] == 1568
+        assert preset["overlap"] == 50
+
+    def test_gemini_preset_values(self):
+        """Gemini preset uses 3072x3072 with 100px overlap."""
+        preset = VISION_AI_PRESETS["gemini"]
+        assert preset["tile_width"] == 3072
+        assert preset["tile_height"] == 3072
+        assert preset["overlap"] == 100
+
+    def test_gpt4v_preset_values(self):
+        """GPT-4V preset uses 2048x2048 with 75px overlap."""
+        preset = VISION_AI_PRESETS["gpt4v"]
+        assert preset["tile_width"] == 2048
+        assert preset["tile_height"] == 2048
+        assert preset["overlap"] == 75
+
+    def test_preset_keys_lowercase(self):
+        """All preset keys are lowercase."""
+        for key in VISION_AI_PRESETS.keys():
+            assert key == key.lower(), f"Preset key {key} is not lowercase"
+
+
+class TestApplyVisionPreset:
+    """Tests for apply_vision_preset function.
+
+    AC: 03-03 - Preset Application Logic
+    """
+
+    def test_apply_preset_claude(self):
+        """apply_vision_preset('claude') returns correct values."""
+        result = apply_vision_preset("claude")
+        assert result["tile_width"] == 1568
+        assert result["tile_height"] == 1568
+        assert result["overlap"] == 50
+
+    def test_apply_preset_gemini(self):
+        """apply_vision_preset('gemini') returns correct values."""
+        result = apply_vision_preset("gemini")
+        assert result["tile_width"] == 3072
+        assert result["tile_height"] == 3072
+        assert result["overlap"] == 100
+
+    def test_apply_preset_gpt4v(self):
+        """apply_vision_preset('gpt4v') returns correct values."""
+        result = apply_vision_preset("gpt4v")
+        assert result["tile_width"] == 2048
+        assert result["tile_height"] == 2048
+        assert result["overlap"] == 75
+
+    def test_apply_preset_case_insensitive(self):
+        """Preset names are case-insensitive."""
+        result_lower = apply_vision_preset("claude")
+        result_upper = apply_vision_preset("CLAUDE")
+        result_mixed = apply_vision_preset("Claude")
+
+        assert result_lower == result_upper == result_mixed
+
+    def test_apply_preset_unknown_model_raises(self):
+        """Unknown preset name raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown Vision AI preset"):
+            apply_vision_preset("unknown_model")
+
+    def test_apply_preset_with_override_tile_width(self):
+        """Custom tile_width overrides preset value."""
+        result = apply_vision_preset("claude", tile_width=1200)
+        assert result["tile_width"] == 1200
+        assert result["tile_height"] == 1568  # Preset value
+        assert result["overlap"] == 50  # Preset value
+
+    def test_apply_preset_with_override_tile_height(self):
+        """Custom tile_height overrides preset value."""
+        result = apply_vision_preset("gemini", tile_height=2000)
+        assert result["tile_width"] == 3072  # Preset value
+        assert result["tile_height"] == 2000
+        assert result["overlap"] == 100  # Preset value
+
+    def test_apply_preset_with_override_overlap(self):
+        """Custom overlap overrides preset value."""
+        result = apply_vision_preset("gpt4v", overlap=25)
+        assert result["tile_width"] == 2048  # Preset value
+        assert result["tile_height"] == 2048  # Preset value
+        assert result["overlap"] == 25
+
+    def test_apply_preset_with_multiple_overrides(self):
+        """Multiple custom values override preset values."""
+        result = apply_vision_preset(
+            "claude",
+            tile_width=1000,
+            tile_height=800,
+            overlap=30
+        )
+        assert result["tile_width"] == 1000
+        assert result["tile_height"] == 800
+        assert result["overlap"] == 30
+
+    def test_apply_preset_returns_copy(self):
+        """apply_vision_preset returns a copy, not the original preset."""
+        result1 = apply_vision_preset("claude")
+        result2 = apply_vision_preset("claude")
+
+        result1["tile_width"] = 999
+
+        # Original preset and second call should be unaffected
+        assert result2["tile_width"] == 1568
+        assert VISION_AI_PRESETS["claude"]["tile_width"] == 1568
