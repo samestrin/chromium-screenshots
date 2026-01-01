@@ -4,6 +4,7 @@ import pytest
 
 from app.tiling import (
     calculate_tile_grid,
+    calculate_per_tile_wait,
     TileBounds,
     VISION_AI_PRESETS,
     apply_vision_preset,
@@ -433,3 +434,57 @@ class TestApplyVisionPreset:
         # Original preset and second call should be unaffected
         assert result2["tile_width"] == 1568
         assert VISION_AI_PRESETS["claude"]["tile_width"] == 1568
+
+
+class TestCalculatePerTileWait:
+    """Tests for calculate_per_tile_wait function."""
+
+    def test_per_tile_wait_distributes_timeout(self):
+        """Total wait_for_timeout is distributed across tiles."""
+        result = calculate_per_tile_wait(1000, 4)
+        assert result == 250  # 1000ms / 4 tiles
+
+    def test_per_tile_wait_respects_minimum(self):
+        """Per-tile wait respects minimum threshold."""
+        result = calculate_per_tile_wait(100, 4)
+        assert result == 50  # 100/4=25, but min is 50
+
+    def test_per_tile_wait_zero_timeout_uses_minimum(self):
+        """Zero timeout defaults to minimum wait."""
+        result = calculate_per_tile_wait(0, 4)
+        assert result == 50
+
+    def test_per_tile_wait_negative_timeout_uses_minimum(self):
+        """Negative timeout treated as zero, uses minimum."""
+        result = calculate_per_tile_wait(-100, 4)
+        assert result == 50
+
+    def test_per_tile_wait_single_tile(self):
+        """Single tile gets full wait time."""
+        result = calculate_per_tile_wait(1000, 1)
+        assert result == 1000
+
+    def test_per_tile_wait_many_tiles(self):
+        """Many tiles correctly divide wait time."""
+        result = calculate_per_tile_wait(2000, 20)
+        assert result == 100  # 2000ms / 20 tiles
+
+    def test_per_tile_wait_custom_minimum(self):
+        """Custom minimum wait is respected."""
+        result = calculate_per_tile_wait(100, 4, min_wait=100)
+        assert result == 100  # 100/4=25, but custom min is 100
+
+    def test_per_tile_wait_large_timeout(self):
+        """Large timeout values work correctly."""
+        result = calculate_per_tile_wait(10000, 5)
+        assert result == 2000  # 10000ms / 5 tiles
+
+    def test_per_tile_wait_exact_division(self):
+        """Exact division gives correct result."""
+        result = calculate_per_tile_wait(500, 10)
+        assert result == 50  # 500/10=50, equals min
+
+    def test_per_tile_wait_just_above_minimum(self):
+        """Value just above minimum is preserved."""
+        result = calculate_per_tile_wait(204, 4)
+        assert result == 51  # 204/4=51, just above 50

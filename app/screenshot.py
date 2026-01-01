@@ -21,7 +21,7 @@ from .models import (
     TiledScreenshotRequest,
     TiledScreenshotResponse,
 )
-from .tiling import apply_vision_preset, calculate_tile_grid
+from .tiling import apply_vision_preset, calculate_per_tile_wait, calculate_tile_grid
 
 
 def extract_domain_from_url(url: str) -> Optional[str]:
@@ -507,11 +507,10 @@ class ScreenshotService:
             if request.format == ImageFormat.JPEG:
                 screenshot_options["quality"] = request.quality
 
-            # Calculate per-tile wait time (use request value or 50ms minimum)
-            if request.wait_for_timeout > 0:
-                per_tile_wait = max(50, request.wait_for_timeout // len(tile_bounds_list))
-            else:
-                per_tile_wait = 50
+            # Calculate per-tile wait time for lazy loading support
+            per_tile_wait = calculate_per_tile_wait(
+                request.wait_for_timeout, len(tile_bounds_list)
+            )
 
             for bounds in tile_bounds_list:
                 # Scroll to tile position
@@ -548,6 +547,24 @@ class ScreenshotService:
                         extractDomElements({json.dumps(options)});
                         """
                     )
+
+                    # Enrich DOM elements with tile metadata (US-02)
+                    if dom_extraction and "elements" in dom_extraction:
+                        for element in dom_extraction["elements"]:
+                            # Set tile_index to identify which tile contains this element
+                            element["tile_index"] = bounds.index
+
+                            # Store original tile-relative rect before adjustment
+                            if "rect" in element:
+                                element["tile_relative_rect"] = {
+                                    "x": element["rect"]["x"],
+                                    "y": element["rect"]["y"],
+                                    "width": element["rect"]["width"],
+                                    "height": element["rect"]["height"],
+                                }
+                                # Adjust rect to absolute page coordinates
+                                element["rect"]["x"] += bounds.x
+                                element["rect"]["y"] += bounds.y
 
                     # Add low element warning if fewer than 5 elements in tile
                     elem_count = dom_extraction.get("element_count", 0)

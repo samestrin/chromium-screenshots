@@ -300,3 +300,36 @@ def apply_vision_preset(
         preset["overlap"] = overlap
 
     return preset
+
+
+def calculate_per_tile_wait(
+    wait_for_timeout: int,
+    tile_count: int,
+    min_wait: int = 50,
+) -> int:
+    """Calculate per-tile wait time for lazy loading support.
+
+    Distributes the total wait_for_timeout across all tiles, ensuring
+    each tile gets at least min_wait milliseconds for content to load.
+
+    Args:
+        wait_for_timeout: Total wait time in milliseconds (0 = use min_wait)
+        tile_count: Number of tiles to distribute wait across
+        min_wait: Minimum wait per tile in milliseconds (default: 50)
+
+    Returns:
+        Per-tile wait time in milliseconds
+
+    Examples:
+        >>> calculate_per_tile_wait(1000, 4)  # 1000ms / 4 tiles = 250ms
+        250
+        >>> calculate_per_tile_wait(100, 4)   # 100ms / 4 = 25ms, but min is 50
+        50
+        >>> calculate_per_tile_wait(0, 4)     # No timeout = use min_wait
+        50
+    """
+    if wait_for_timeout <= 0:
+        return min_wait
+
+    calculated = wait_for_timeout // tile_count
+    return max(min_wait, calculated)
