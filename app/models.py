@@ -3,7 +3,10 @@
 from enum import Enum
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
+
+# Re-export TileBounds from tiling module for convenience
+from app.tiling import TileBounds
 
 
 class SameSitePolicy(str, Enum):
@@ -522,3 +525,187 @@ class ErrorResponse(BaseModel):
     success: bool = False
     error: str
     detail: Optional[str] = None
+
+
+# =============================================================================
+# Sprint 6.0: Tiled Screenshot Models
+# =============================================================================
+
+
+class Tile(BaseModel):
+    """Individual tile from a tiled screenshot capture.
+
+    Represents a single viewport-sized tile from a full-page screenshot,
+    including its position in the grid and the captured image data.
+    """
+
+    index: int = Field(..., ge=0, description="Sequential tile index (0-based)")
+    row: int = Field(..., ge=0, description="Row position in tile grid")
+    column: int = Field(..., ge=0, description="Column position in tile grid")
+    bounds: TileBounds = Field(..., description="Tile position and dimensions")
+    image_base64: str = Field(..., description="Base64-encoded tile image data")
+    file_size_bytes: int = Field(..., ge=0, description="Tile image file size in bytes")
+    dom_extraction: Optional[DomExtractionResult] = Field(
+        default=None,
+        description="DOM extraction results for this tile, if enabled",
+    )
+
+
+class TileConfig(BaseModel):
+    """Configuration and metadata for tile grid generation.
+
+    Contains the tile dimensions, overlap settings, and grid structure
+    used to generate the tiled screenshot.
+    """
+
+    tile_width: int = Field(..., gt=0, description="Width of each tile in pixels")
+    tile_height: int = Field(..., gt=0, description="Height of each tile in pixels")
+    overlap: int = Field(..., ge=0, description="Overlap between adjacent tiles in pixels")
+    total_tiles: int = Field(..., ge=1, description="Total number of tiles generated")
+    grid: dict[str, int] = Field(
+        ...,
+        description="Grid dimensions as {'columns': int, 'rows': int}",
+    )
+    applied_preset: Optional[str] = Field(
+        default=None,
+        description="Vision AI preset name if one was applied (e.g., 'claude', 'gemini')",
+    )
+
+
+class CoordinateMapping(BaseModel):
+    """Instructions for mapping tile-relative coordinates to full-page coordinates.
+
+    Provides guidance for Vision AI integrations on how to convert
+    element coordinates from tile-relative to absolute page positions.
+    """
+
+    type: str = Field(
+        default="tile_offset",
+        description="Mapping type: 'tile_offset' means add tile bounds to element coords",
+    )
+    instructions: str = Field(
+        ...,
+        description="Human-readable instructions for coordinate adjustment",
+    )
+    full_page_width: int = Field(..., gt=0, description="Full page width in pixels")
+    full_page_height: int = Field(..., gt=0, description="Full page height in pixels")
+
+
+class TiledScreenshotRequest(BaseModel):
+    """Request model for tiled screenshot capture.
+
+    Captures a full-page screenshot as a grid of viewport-sized tiles,
+    optimized for Vision AI processing.
+    """
+
+    url: HttpUrl = Field(..., description="URL to capture")
+    tile_width: int = Field(
+        default=1568,
+        gt=0,
+        le=4096,
+        description="Width of each tile in pixels (default: 1568 for Claude)",
+    )
+    tile_height: int = Field(
+        default=1568,
+        gt=0,
+        le=4096,
+        description="Height of each tile in pixels (default: 1568 for Claude)",
+    )
+    overlap: int = Field(
+        default=50,
+        ge=0,
+        le=500,
+        description="Overlap between adjacent tiles in pixels (default: 50)",
+    )
+    max_tile_count: int = Field(
+        default=20,
+        ge=1,
+        le=1000,
+        description="Maximum tiles to generate (default: 20, absolute max: 1000)",
+    )
+    target_vision_model: Optional[str] = Field(
+        default=None,
+        description="Vision AI model preset: 'claude', 'gemini', 'gpt4v'",
+    )
+    format: ImageFormat = Field(
+        default=ImageFormat.PNG,
+        description="Output image format",
+    )
+    quality: int = Field(
+        default=90,
+        ge=1,
+        le=100,
+        description="Image quality (1-100, only applies to JPEG)",
+    )
+    wait_for_timeout: int = Field(
+        default=0,
+        ge=0,
+        le=30000,
+        description="Additional wait time in ms after page load (0-30000)",
+    )
+    wait_for_selector: Optional[str] = Field(
+        default=None,
+        description="CSS selector to wait for before capture",
+    )
+    delay: int = Field(
+        default=0,
+        ge=0,
+        le=10000,
+        description="Delay in ms before taking screenshot (0-10000)",
+    )
+    dark_mode: bool = Field(default=False, description="Emulate dark color scheme")
+    block_ads: bool = Field(default=False, description="Block common ad domains")
+    cookies: Optional[list[Cookie]] = Field(
+        default=None,
+        description="Cookies to inject into the browser context",
+    )
+    localStorage: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="localStorage key-value pairs to inject",
+    )
+    sessionStorage: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="sessionStorage key-value pairs to inject",
+    )
+    extract_dom: Optional[DomExtractionOptions] = Field(
+        default=None,
+        description="Options for extracting DOM elements from each tile",
+    )
+
+    @model_validator(mode="after")
+    def validate_overlap_less_than_tile(self) -> "TiledScreenshotRequest":
+        """Ensure overlap is less than tile dimensions."""
+        if self.overlap >= self.tile_width:
+            raise ValueError(
+                f"overlap ({self.overlap}) must be less than tile_width ({self.tile_width})"
+            )
+        if self.overlap >= self.tile_height:
+            raise ValueError(
+                f"overlap ({self.overlap}) must be less than tile_height ({self.tile_height})"
+            )
+        return self
+
+
+class TiledScreenshotResponse(BaseModel):
+    """Response model for tiled screenshot capture.
+
+    Contains the grid of captured tiles with their positions and
+    instructions for coordinate mapping.
+    """
+
+    success: bool = Field(default=True, description="Whether capture was successful")
+    url: str = Field(..., description="URL that was captured")
+    full_page_dimensions: dict[str, int] = Field(
+        ...,
+        description="Full page dimensions as {'width': int, 'height': int}",
+    )
+    tile_config: TileConfig = Field(..., description="Tile configuration used")
+    tiles: list[Tile] = Field(..., description="List of captured tiles")
+    capture_time_ms: float = Field(
+        ...,
+        description="Total capture time in milliseconds",
+    )
+    coordinate_mapping: CoordinateMapping = Field(
+        ...,
+        description="Instructions for coordinate mapping",
+    )

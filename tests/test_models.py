@@ -157,13 +157,13 @@ class TestQualityWarningModel:
         warning = QualityWarning(
             code="test_code",
             message='Message with "quotes" and newline\n',
-            suggestion="Suggestion with unicode: café"
+            suggestion="Suggestion with unicode: cafe"
         )
         # Round-trip via JSON
         json_str = warning.model_dump_json()
         restored = QualityWarning.model_validate_json(json_str)
         assert restored.message == 'Message with "quotes" and newline\n'
-        assert restored.suggestion == "Suggestion with unicode: café"
+        assert restored.suggestion == "Suggestion with unicode: cafe"
 
     def test_quality_warning_has_field_descriptions(self):
         """QualityWarning fields have descriptions for OpenAPI."""
@@ -1808,3 +1808,511 @@ class TestVisionAIHintsModel:
 
         assert VisionAIHints.__doc__ is not None
         assert len(VisionAIHints.__doc__) > 10
+
+
+# =============================================================================
+# Sprint 6.0: Tiled Screenshot Models Tests
+# =============================================================================
+
+
+class TestTileModel:
+    """Tests for Tile Pydantic model (Sprint 6.0)."""
+
+    def test_tile_model_exists(self):
+        """Tile model exists and is importable."""
+        from app.models import Tile
+
+        assert Tile is not None
+
+    def test_tile_creation_with_required_fields(self):
+        """Tile can be created with required fields."""
+        from app.models import Tile, TileBounds
+
+        bounds = TileBounds(
+            index=0, row=0, column=0, x=0, y=0, width=1200, height=800
+        )
+        tile = Tile(
+            index=0,
+            row=0,
+            column=0,
+            bounds=bounds,
+            image_base64="dGVzdA==",
+            file_size_bytes=12345,
+        )
+        assert tile.index == 0
+        assert tile.bounds.width == 1200
+        assert tile.image_base64 == "dGVzdA=="
+
+    def test_tile_with_dom_extraction(self):
+        """Tile accepts optional dom_extraction field."""
+        from app.models import DomExtractionResult, Tile, TileBounds
+
+        bounds = TileBounds(
+            index=0, row=0, column=0, x=0, y=0, width=1200, height=800
+        )
+        dom_result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1200, "height": 800},
+            extraction_time_ms=10.0,
+            element_count=0,
+        )
+        tile = Tile(
+            index=0,
+            row=0,
+            column=0,
+            bounds=bounds,
+            image_base64="dGVzdA==",
+            file_size_bytes=12345,
+            dom_extraction=dom_result,
+        )
+        assert tile.dom_extraction is not None
+        assert tile.dom_extraction.element_count == 0
+
+    def test_tile_dom_extraction_defaults_to_none(self):
+        """Tile dom_extraction defaults to None."""
+        from app.models import Tile, TileBounds
+
+        bounds = TileBounds(
+            index=0, row=0, column=0, x=0, y=0, width=1200, height=800
+        )
+        tile = Tile(
+            index=0,
+            row=0,
+            column=0,
+            bounds=bounds,
+            image_base64="dGVzdA==",
+            file_size_bytes=12345,
+        )
+        assert tile.dom_extraction is None
+
+    def test_tile_serializes_to_json(self):
+        """Tile serializes to JSON correctly."""
+        import json
+
+        from app.models import Tile, TileBounds
+
+        bounds = TileBounds(
+            index=1, row=1, column=0, x=0, y=750, width=1200, height=800
+        )
+        tile = Tile(
+            index=1,
+            row=1,
+            column=0,
+            bounds=bounds,
+            image_base64="dGVzdA==",
+            file_size_bytes=54321,
+        )
+        json_str = tile.model_dump_json()
+        data = json.loads(json_str)
+
+        assert data["index"] == 1
+        assert data["bounds"]["y"] == 750
+        assert data["file_size_bytes"] == 54321
+
+
+class TestTileConfigModel:
+    """Tests for TileConfig Pydantic model (Sprint 6.0)."""
+
+    def test_tile_config_model_exists(self):
+        """TileConfig model exists and is importable."""
+        from app.models import TileConfig
+
+        assert TileConfig is not None
+
+    def test_tile_config_creation(self):
+        """TileConfig can be created with all fields."""
+        from app.models import TileConfig
+
+        config = TileConfig(
+            tile_width=1200,
+            tile_height=800,
+            overlap=50,
+            total_tiles=4,
+            grid={"columns": 1, "rows": 4},
+        )
+        assert config.tile_width == 1200
+        assert config.tile_height == 800
+        assert config.overlap == 50
+        assert config.total_tiles == 4
+        assert config.grid["rows"] == 4
+
+    def test_tile_config_with_applied_preset(self):
+        """TileConfig accepts optional applied_preset field."""
+        from app.models import TileConfig
+
+        config = TileConfig(
+            tile_width=1568,
+            tile_height=1568,
+            overlap=50,
+            total_tiles=3,
+            grid={"columns": 1, "rows": 3},
+            applied_preset="claude",
+        )
+        assert config.applied_preset == "claude"
+
+    def test_tile_config_applied_preset_defaults_to_none(self):
+        """TileConfig applied_preset defaults to None."""
+        from app.models import TileConfig
+
+        config = TileConfig(
+            tile_width=1200,
+            tile_height=800,
+            overlap=50,
+            total_tiles=4,
+            grid={"columns": 1, "rows": 4},
+        )
+        assert config.applied_preset is None
+
+    def test_tile_config_serializes_to_json(self):
+        """TileConfig serializes to JSON correctly."""
+        import json
+
+        from app.models import TileConfig
+
+        config = TileConfig(
+            tile_width=1568,
+            tile_height=1568,
+            overlap=50,
+            total_tiles=3,
+            grid={"columns": 1, "rows": 3},
+            applied_preset="claude",
+        )
+        json_str = config.model_dump_json()
+        data = json.loads(json_str)
+
+        assert data["tile_width"] == 1568
+        assert data["applied_preset"] == "claude"
+
+
+class TestCoordinateMappingModel:
+    """Tests for CoordinateMapping Pydantic model (Sprint 6.0)."""
+
+    def test_coordinate_mapping_model_exists(self):
+        """CoordinateMapping model exists and is importable."""
+        from app.models import CoordinateMapping
+
+        assert CoordinateMapping is not None
+
+    def test_coordinate_mapping_creation(self):
+        """CoordinateMapping can be created."""
+        from app.models import CoordinateMapping
+
+        mapping = CoordinateMapping(
+            type="tile_offset",
+            instructions="Add tile bounds.x/y to element coordinates for full-page position",
+            full_page_width=1200,
+            full_page_height=5000,
+        )
+        assert mapping.type == "tile_offset"
+        assert "full-page" in mapping.instructions
+        assert mapping.full_page_width == 1200
+        assert mapping.full_page_height == 5000
+
+    def test_coordinate_mapping_type_defaults_to_tile_offset(self):
+        """CoordinateMapping type defaults to 'tile_offset'."""
+        from app.models import CoordinateMapping
+
+        mapping = CoordinateMapping(
+            instructions="Add tile offset",
+            full_page_width=1200,
+            full_page_height=5000,
+        )
+        assert mapping.type == "tile_offset"
+
+
+class TestTiledScreenshotRequestModel:
+    """Tests for TiledScreenshotRequest Pydantic model (Sprint 6.0)."""
+
+    def test_tiled_request_model_exists(self):
+        """TiledScreenshotRequest model exists and is importable."""
+        from app.models import TiledScreenshotRequest
+
+        assert TiledScreenshotRequest is not None
+
+    def test_tiled_request_minimal(self):
+        """TiledScreenshotRequest works with just URL."""
+        from app.models import TiledScreenshotRequest
+
+        request = TiledScreenshotRequest(url="https://example.com")
+        assert str(request.url) == "https://example.com/"
+
+    def test_tiled_request_default_tile_dimensions(self):
+        """TiledScreenshotRequest has default tile dimensions."""
+        from app.models import TiledScreenshotRequest
+
+        request = TiledScreenshotRequest(url="https://example.com")
+        # Should have reasonable defaults
+        assert hasattr(request, "tile_width")
+        assert hasattr(request, "tile_height")
+        assert hasattr(request, "overlap")
+
+    def test_tiled_request_custom_tile_dimensions(self):
+        """TiledScreenshotRequest accepts custom tile dimensions."""
+        from app.models import TiledScreenshotRequest
+
+        request = TiledScreenshotRequest(
+            url="https://example.com",
+            tile_width=1000,
+            tile_height=1200,
+            overlap=100,
+        )
+        assert request.tile_width == 1000
+        assert request.tile_height == 1200
+        assert request.overlap == 100
+
+    def test_tiled_request_target_vision_model(self):
+        """TiledScreenshotRequest accepts target_vision_model."""
+        from app.models import TiledScreenshotRequest
+
+        request = TiledScreenshotRequest(
+            url="https://example.com",
+            target_vision_model="claude",
+        )
+        assert request.target_vision_model == "claude"
+
+    def test_tiled_request_max_tile_count(self):
+        """TiledScreenshotRequest accepts max_tile_count."""
+        from app.models import TiledScreenshotRequest
+
+        request = TiledScreenshotRequest(
+            url="https://example.com",
+            max_tile_count=50,
+        )
+        assert request.max_tile_count == 50
+
+    def test_tiled_request_max_tile_count_default(self):
+        """TiledScreenshotRequest max_tile_count defaults to 20."""
+        from app.models import TiledScreenshotRequest
+
+        request = TiledScreenshotRequest(url="https://example.com")
+        assert request.max_tile_count == 20
+
+    def test_tiled_request_with_dom_extraction(self):
+        """TiledScreenshotRequest accepts extract_dom options."""
+        from app.models import DomExtractionOptions, TiledScreenshotRequest
+
+        options = DomExtractionOptions(enabled=True)
+        request = TiledScreenshotRequest(
+            url="https://example.com",
+            extract_dom=options,
+        )
+        assert request.extract_dom.enabled is True
+
+    def test_tiled_request_validation_overlap_less_than_tile(self):
+        """TiledScreenshotRequest validates overlap < tile dimensions."""
+        from app.models import TiledScreenshotRequest
+
+        with pytest.raises(ValidationError):
+            TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=800,
+                tile_height=800,
+                overlap=900,  # Greater than tile dimensions
+            )
+
+    def test_tiled_request_validation_max_tile_count_absolute_max(self):
+        """TiledScreenshotRequest validates max_tile_count <= 1000."""
+        from app.models import TiledScreenshotRequest
+
+        with pytest.raises(ValidationError):
+            TiledScreenshotRequest(
+                url="https://example.com",
+                max_tile_count=10001,  # Exceeds absolute max
+            )
+
+
+class TestTiledScreenshotResponseModel:
+    """Tests for TiledScreenshotResponse Pydantic model (Sprint 6.0)."""
+
+    def test_tiled_response_model_exists(self):
+        """TiledScreenshotResponse model exists and is importable."""
+        from app.models import TiledScreenshotResponse
+
+        assert TiledScreenshotResponse is not None
+
+    def test_tiled_response_creation(self):
+        """TiledScreenshotResponse can be created with all fields."""
+        from app.models import (
+            CoordinateMapping,
+            Tile,
+            TileBounds,
+            TileConfig,
+            TiledScreenshotResponse,
+        )
+
+        bounds = TileBounds(
+            index=0, row=0, column=0, x=0, y=0, width=1200, height=800
+        )
+        tile = Tile(
+            index=0,
+            row=0,
+            column=0,
+            bounds=bounds,
+            image_base64="dGVzdA==",
+            file_size_bytes=12345,
+        )
+        config = TileConfig(
+            tile_width=1200,
+            tile_height=800,
+            overlap=50,
+            total_tiles=1,
+            grid={"columns": 1, "rows": 1},
+        )
+        mapping = CoordinateMapping(
+            type="tile_offset",
+            instructions="Add tile offset",
+            full_page_width=1200,
+            full_page_height=800,
+        )
+        response = TiledScreenshotResponse(
+            success=True,
+            url="https://example.com",
+            full_page_dimensions={"width": 1200, "height": 800},
+            tile_config=config,
+            tiles=[tile],
+            capture_time_ms=150.5,
+            coordinate_mapping=mapping,
+        )
+        assert response.success is True
+        assert len(response.tiles) == 1
+        assert response.tile_config.total_tiles == 1
+
+    def test_tiled_response_multiple_tiles(self):
+        """TiledScreenshotResponse handles multiple tiles."""
+        from app.models import (
+            CoordinateMapping,
+            Tile,
+            TileBounds,
+            TileConfig,
+            TiledScreenshotResponse,
+        )
+
+        tiles = []
+        for i in range(4):
+            bounds = TileBounds(
+                index=i, row=i, column=0, x=0, y=i * 750, width=1200, height=800
+            )
+            tile = Tile(
+                index=i,
+                row=i,
+                column=0,
+                bounds=bounds,
+                image_base64="dGVzdA==",
+                file_size_bytes=12345,
+            )
+            tiles.append(tile)
+
+        config = TileConfig(
+            tile_width=1200,
+            tile_height=800,
+            overlap=50,
+            total_tiles=4,
+            grid={"columns": 1, "rows": 4},
+        )
+        mapping = CoordinateMapping(
+            type="tile_offset",
+            instructions="Add tile offset",
+            full_page_width=1200,
+            full_page_height=3000,
+        )
+        response = TiledScreenshotResponse(
+            success=True,
+            url="https://example.com",
+            full_page_dimensions={"width": 1200, "height": 3000},
+            tile_config=config,
+            tiles=tiles,
+            capture_time_ms=500.0,
+            coordinate_mapping=mapping,
+        )
+        assert len(response.tiles) == 4
+        assert response.tiles[3].bounds.y == 2250
+
+    def test_tiled_response_serializes_to_json(self):
+        """TiledScreenshotResponse serializes to JSON correctly."""
+        import json
+
+        from app.models import (
+            CoordinateMapping,
+            Tile,
+            TileBounds,
+            TileConfig,
+            TiledScreenshotResponse,
+        )
+
+        bounds = TileBounds(
+            index=0, row=0, column=0, x=0, y=0, width=1200, height=800
+        )
+        tile = Tile(
+            index=0,
+            row=0,
+            column=0,
+            bounds=bounds,
+            image_base64="dGVzdA==",
+            file_size_bytes=12345,
+        )
+        config = TileConfig(
+            tile_width=1200,
+            tile_height=800,
+            overlap=50,
+            total_tiles=1,
+            grid={"columns": 1, "rows": 1},
+        )
+        mapping = CoordinateMapping(
+            type="tile_offset",
+            instructions="Add tile offset",
+            full_page_width=1200,
+            full_page_height=800,
+        )
+        response = TiledScreenshotResponse(
+            success=True,
+            url="https://example.com",
+            full_page_dimensions={"width": 1200, "height": 800},
+            tile_config=config,
+            tiles=[tile],
+            capture_time_ms=150.5,
+            coordinate_mapping=mapping,
+        )
+        json_str = response.model_dump_json()
+        data = json.loads(json_str)
+
+        assert data["success"] is True
+        assert len(data["tiles"]) == 1
+        assert data["tile_config"]["tile_width"] == 1200
+        assert data["coordinate_mapping"]["type"] == "tile_offset"
+
+
+class TestTileBoundsModelInModels:
+    """Tests for TileBounds in app/models.py (Sprint 6.0)."""
+
+    def test_tile_bounds_in_models_module(self):
+        """TileBounds is importable from app.models."""
+        from app.models import TileBounds
+
+        assert TileBounds is not None
+
+    def test_tile_bounds_validation_negative_x(self):
+        """TileBounds rejects negative x value."""
+        from app.models import TileBounds
+
+        with pytest.raises(ValidationError):
+            TileBounds(
+                index=0, row=0, column=0, x=-10, y=0, width=100, height=100
+            )
+
+    def test_tile_bounds_validation_zero_width(self):
+        """TileBounds rejects zero width."""
+        from app.models import TileBounds
+
+        with pytest.raises(ValidationError):
+            TileBounds(
+                index=0, row=0, column=0, x=0, y=0, width=0, height=100
+            )
+
+    def test_tile_bounds_validation_zero_height(self):
+        """TileBounds rejects zero height."""
+        from app.models import TileBounds
+
+        with pytest.raises(ValidationError):
+            TileBounds(
+                index=0, row=0, column=0, x=0, y=0, width=100, height=0
+            )

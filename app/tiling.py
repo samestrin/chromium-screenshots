@@ -193,6 +193,63 @@ def calculate_tile_grid(
     return tiles
 
 
+def adjust_element_coordinates(
+    element_rect: dict[str, float],
+    tile_bounds: TileBounds,
+) -> dict[str, float]:
+    """Adjust element coordinates from tile-relative to full-page absolute.
+
+    Converts DOM element bounding rectangle coordinates from tile-relative
+    positions to absolute page positions by adding the tile's offset.
+
+    Args:
+        element_rect: Element rectangle with x, y, width, height
+        tile_bounds: Tile position within the full page
+
+    Returns:
+        New dictionary with adjusted x, y coordinates (width, height unchanged)
+
+    Example:
+        >>> bounds = TileBounds(index=1, row=1, column=0, x=0, y=750, ...)
+        >>> rect = {"x": 100, "y": 200, "width": 50, "height": 30}
+        >>> adjusted = adjust_element_coordinates(rect, bounds)
+        >>> adjusted["y"]  # 200 + 750 = 950
+        950
+    """
+    return {
+        "x": element_rect["x"] + tile_bounds.x,
+        "y": element_rect["y"] + tile_bounds.y,
+        "width": element_rect["width"],
+        "height": element_rect["height"],
+    }
+
+
+def adjust_elements_batch(
+    elements: list[dict[str, float]],
+    tile_bounds: TileBounds,
+) -> list[dict[str, float]]:
+    """Adjust coordinates for a batch of elements.
+
+    Processes multiple element rectangles, converting each from tile-relative
+    to absolute page coordinates.
+
+    Args:
+        elements: List of element rectangles with x, y, width, height
+        tile_bounds: Tile position within the full page
+
+    Returns:
+        List of new dictionaries with adjusted coordinates
+
+    Example:
+        >>> bounds = TileBounds(index=2, row=2, column=0, x=0, y=1500, ...)
+        >>> elements = [{"x": 50, "y": 100, ...}, {"x": 200, "y": 300, ...}]
+        >>> adjusted = adjust_elements_batch(elements, bounds)
+        >>> [e["y"] for e in adjusted]
+        [1600, 1800]
+    """
+    return [adjust_element_coordinates(el, tile_bounds) for el in elements]
+
+
 def apply_vision_preset(
     preset_name: str,
     tile_width: Optional[int] = None,

@@ -22,6 +22,8 @@ from .models import (
     ScreenshotRequest,
     ScreenshotResponse,
     ScreenshotType,
+    TiledScreenshotRequest,
+    TiledScreenshotResponse,
 )
 from .screenshot import screenshot_service
 
@@ -311,6 +313,33 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Screenshot capture failed: {str(e)}",
+        )
+
+
+@app.post("/screenshot/tiled", response_model=TiledScreenshotResponse)
+async def take_tiled_screenshot(request: TiledScreenshotRequest):
+    """
+    Capture a full-page screenshot as a grid of viewport-sized tiles.
+
+    Returns an array of tiles, each containing a base64-encoded image and
+    positioning metadata. Optimized for Vision AI processing where large
+    images would be internally resized, causing coordinate mismatch.
+
+    Each tile includes bounds (x, y, width, height) for coordinate mapping
+    from tile-relative to full-page absolute positions.
+
+    **Vision AI Presets:**
+    - `claude`: 1568x1568 tiles with 50px overlap
+    - `gemini`: 3072x3072 tiles with 100px overlap
+    - `gpt4v`: 2048x2048 tiles with 75px overlap
+    """
+    try:
+        result = await screenshot_service.capture_tiled(request)
+        return result
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Tiled screenshot capture failed: {str(e)}",
         )
 
 

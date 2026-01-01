@@ -191,3 +191,110 @@ class TestTileBoundsModel:
         json_data = bounds.model_dump()
         assert json_data['index'] == 1
         assert json_data['y'] == 750
+
+
+class TestCoordinateAdjustment:
+    """Tests for coordinate adjustment functions."""
+
+    def test_adjust_coordinates_first_tile(self):
+        """First tile (y=0) requires no offset adjustment."""
+        from app.tiling import adjust_element_coordinates, TileBounds
+
+        tile_bounds = TileBounds(
+            index=0, row=0, column=0, x=0, y=0, width=1200, height=800
+        )
+        # Element at position (100, 200) within tile
+        element_rect = {"x": 100, "y": 200, "width": 50, "height": 30}
+
+        adjusted = adjust_element_coordinates(element_rect, tile_bounds)
+
+        # For first tile, page coords = tile coords
+        assert adjusted["x"] == 100
+        assert adjusted["y"] == 200
+
+    def test_adjust_coordinates_offset_tile(self):
+        """Tile at y=750 requires y offset adjustment."""
+        from app.tiling import adjust_element_coordinates, TileBounds
+
+        tile_bounds = TileBounds(
+            index=1, row=1, column=0, x=0, y=750, width=1200, height=800
+        )
+        # Element at position (100, 200) within tile
+        element_rect = {"x": 100, "y": 200, "width": 50, "height": 30}
+
+        adjusted = adjust_element_coordinates(element_rect, tile_bounds)
+
+        # Page coords = tile coords + tile offset
+        assert adjusted["x"] == 100  # No x offset for single column
+        assert adjusted["y"] == 950  # 200 + 750 = 950
+
+    def test_adjust_coordinates_horizontal_offset(self):
+        """Tile with x offset adjusts horizontal position."""
+        from app.tiling import adjust_element_coordinates, TileBounds
+
+        tile_bounds = TileBounds(
+            index=1, row=0, column=1, x=1150, y=0, width=1200, height=800
+        )
+        # Element at position (100, 200) within tile
+        element_rect = {"x": 100, "y": 200, "width": 50, "height": 30}
+
+        adjusted = adjust_element_coordinates(element_rect, tile_bounds)
+
+        # Page coords = tile coords + tile offset
+        assert adjusted["x"] == 1250  # 100 + 1150
+        assert adjusted["y"] == 200
+
+    def test_adjust_coordinates_preserves_dimensions(self):
+        """Adjustment preserves width and height."""
+        from app.tiling import adjust_element_coordinates, TileBounds
+
+        tile_bounds = TileBounds(
+            index=1, row=1, column=0, x=0, y=750, width=1200, height=800
+        )
+        element_rect = {"x": 100, "y": 200, "width": 150, "height": 80}
+
+        adjusted = adjust_element_coordinates(element_rect, tile_bounds)
+
+        assert adjusted["width"] == 150
+        assert adjusted["height"] == 80
+
+    def test_adjust_coordinates_batch(self):
+        """Batch adjustment handles multiple elements."""
+        from app.tiling import adjust_elements_batch, TileBounds
+
+        tile_bounds = TileBounds(
+            index=2, row=2, column=0, x=0, y=1500, width=1200, height=800
+        )
+        elements = [
+            {"x": 50, "y": 100, "width": 20, "height": 10},
+            {"x": 200, "y": 300, "width": 40, "height": 25},
+            {"x": 100, "y": 600, "width": 100, "height": 50},
+        ]
+
+        adjusted = adjust_elements_batch(elements, tile_bounds)
+
+        assert len(adjusted) == 3
+        # First element
+        assert adjusted[0]["x"] == 50
+        assert adjusted[0]["y"] == 1600  # 100 + 1500
+        # Second element
+        assert adjusted[1]["x"] == 200
+        assert adjusted[1]["y"] == 1800  # 300 + 1500
+        # Third element
+        assert adjusted[2]["x"] == 100
+        assert adjusted[2]["y"] == 2100  # 600 + 1500
+
+    def test_adjust_coordinates_immutable(self):
+        """Adjustment does not modify original element."""
+        from app.tiling import adjust_element_coordinates, TileBounds
+
+        tile_bounds = TileBounds(
+            index=1, row=1, column=0, x=0, y=750, width=1200, height=800
+        )
+        original_rect = {"x": 100, "y": 200, "width": 50, "height": 30}
+        original_copy = original_rect.copy()
+
+        adjust_element_coordinates(original_rect, tile_bounds)
+
+        # Original should be unchanged
+        assert original_rect == original_copy

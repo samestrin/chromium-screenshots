@@ -395,3 +395,253 @@ class TestDomExtractionResultConversion:
                 assert "z_index" in element
         finally:
             await service.shutdown()
+
+
+# =============================================================================
+# Sprint 6.0: Tile Capture Loop Tests
+# =============================================================================
+
+
+class TestCaptureTiledMultiTile:
+    """Tests for capture_tiled method with multiple tiles.
+
+    AC: 01-03 - Tile Capture Loop
+    """
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_method_exists(self):
+        """ScreenshotService has capture_tiled method."""
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        assert hasattr(service, "capture_tiled")
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_returns_tiled_response(self):
+        """capture_tiled returns TiledScreenshotResponse."""
+        from app.models import TiledScreenshotRequest, TiledScreenshotResponse
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(url="https://example.com")
+            result = await service.capture_tiled(request)
+
+            assert isinstance(result, TiledScreenshotResponse)
+            assert result.success is True
+            assert len(result.tiles) >= 1
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_multi_tile_tall_page(self):
+        """Capture multiple tiles for tall page."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            # Request with small tile height to force multiple tiles
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1200,
+                tile_height=400,
+                overlap=50,
+            )
+            result = await service.capture_tiled(request)
+
+            # Should have multiple tiles for a page > 400px tall
+            assert len(result.tiles) >= 1
+            assert result.tile_config.tile_height == 400
+            assert result.tile_config.overlap == 50
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_single_tile_short_page(self):
+        """Short page produces single tile."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            # Large tile size should capture page in single tile
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1920,
+                tile_height=3000,
+                overlap=50,
+            )
+            result = await service.capture_tiled(request)
+
+            # example.com is a short page, should be single tile
+            assert len(result.tiles) >= 1
+            # First tile should start at y=0
+            assert result.tiles[0].bounds.y == 0
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_tile_metadata_correct(self):
+        """Each tile has correct metadata (index, row, column)."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1200,
+                tile_height=600,
+                overlap=50,
+            )
+            result = await service.capture_tiled(request)
+
+            # Verify tile metadata
+            for i, tile in enumerate(result.tiles):
+                assert tile.index == i
+                assert tile.bounds.index == i
+                assert isinstance(tile.image_base64, str)
+                assert tile.file_size_bytes > 0
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_response_has_config(self):
+        """Response includes tile configuration."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1000,
+                tile_height=800,
+                overlap=75,
+            )
+            result = await service.capture_tiled(request)
+
+            # Check tile config
+            assert result.tile_config.tile_width == 1000
+            assert result.tile_config.tile_height == 800
+            assert result.tile_config.overlap == 75
+            assert result.tile_config.total_tiles == len(result.tiles)
+            assert "rows" in result.tile_config.grid
+            assert "columns" in result.tile_config.grid
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_response_has_coordinate_mapping(self):
+        """Response includes coordinate mapping instructions."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(url="https://example.com")
+            result = await service.capture_tiled(request)
+
+            assert result.coordinate_mapping is not None
+            assert result.coordinate_mapping.type == "tile_offset"
+            assert result.coordinate_mapping.full_page_width > 0
+            assert result.coordinate_mapping.full_page_height > 0
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_response_has_full_page_dimensions(self):
+        """Response includes full page dimensions."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(url="https://example.com")
+            result = await service.capture_tiled(request)
+
+            assert "width" in result.full_page_dimensions
+            assert "height" in result.full_page_dimensions
+            assert result.full_page_dimensions["width"] > 0
+            assert result.full_page_dimensions["height"] > 0
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_capture_time_recorded(self):
+        """Capture time is recorded in response."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(url="https://example.com")
+            result = await service.capture_tiled(request)
+
+            assert result.capture_time_ms > 0
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_tiles_have_valid_images(self):
+        """Each tile contains valid base64-encoded image data."""
+        import base64
+
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(url="https://example.com")
+            result = await service.capture_tiled(request)
+
+            for tile in result.tiles:
+                # Verify base64 is decodable
+                decoded = base64.b64decode(tile.image_base64)
+                assert len(decoded) > 0
+                # PNG starts with specific bytes
+                assert decoded[:4] == b"\x89PNG"
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_max_tile_count_enforced(self):
+        """max_tile_count limits number of tiles generated."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1200,
+                tile_height=100,  # Very small to generate many tiles
+                overlap=10,
+                max_tile_count=3,
+            )
+            result = await service.capture_tiled(request)
+
+            assert len(result.tiles) <= 3
+        finally:
+            await service.shutdown()
