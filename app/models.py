@@ -14,6 +14,19 @@ class SameSitePolicy(str, Enum):
     NONE = "None"
 
 
+class VisionModel(str, Enum):
+    """Supported Vision AI models for optimization hints.
+
+    Used to select model-specific thresholds for image sizing
+    and tiling recommendations.
+    """
+
+    CLAUDE = "claude"
+    GEMINI = "gemini"
+    GPT4V = "gpt4v"
+    QWEN_VL_MAX = "qwen-vl-max"
+
+
 class BoundingRect(BaseModel):
     """Bounding rectangle for DOM element positioning."""
 
@@ -59,6 +72,10 @@ class DomExtractionResult(BaseModel):
         default_factory=list,
         description="Warnings about potential issues with the extraction",
     )
+    metrics: Optional["QualityMetrics"] = Field(
+        default=None,
+        description="Detailed quality metrics, present when include_metrics=true",
+    )
 
 
 class DomExtractionOptions(BaseModel):
@@ -87,6 +104,18 @@ class DomExtractionOptions(BaseModel):
     max_elements: int = Field(
         default=500,
         description="Maximum number of elements to return",
+    )
+    include_metrics: bool = Field(
+        default=False,
+        description="Include detailed quality metrics in response",
+    )
+    include_vision_hints: bool = Field(
+        default=False,
+        description="Include Vision AI optimization hints",
+    )
+    target_vision_model: Optional[VisionModel] = Field(
+        default=None,
+        description="Target Vision AI model for hints: 'claude', 'gemini', 'gpt4v', 'qwen-vl-max'",
     )
 
 
@@ -163,6 +192,222 @@ class QualityWarning(BaseModel):
     suggestion: str = Field(
         ...,
         description="Actionable suggestion for addressing the warning",
+    )
+
+
+class QualityMetrics(BaseModel):
+    """Detailed quality metrics for DOM extraction results.
+
+    Provides comprehensive statistics about extracted DOM elements,
+    including element counts, visibility ratios, tag distribution,
+    and text statistics. Used by Vision AI integrations to assess
+    extraction quality and optimize processing.
+    """
+
+    # === Element Counts ===
+    element_count: int = Field(
+        ...,
+        ge=0,
+        description="Total number of DOM elements extracted",
+    )
+    visible_count: int = Field(
+        ...,
+        ge=0,
+        description="Number of visible elements (not hidden via CSS)",
+    )
+    hidden_count: int = Field(
+        ...,
+        ge=0,
+        description="Number of hidden elements (display:none or visibility:hidden)",
+    )
+    heading_count: int = Field(
+        ...,
+        ge=0,
+        description="Number of heading elements (h1-h6) extracted",
+    )
+    unique_tag_count: int = Field(
+        ...,
+        ge=0,
+        description="Count of unique HTML tag types in extraction",
+    )
+
+    # === Visibility Ratios ===
+    visible_ratio: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Ratio of visible elements (0.0 to 1.0)",
+    )
+    hidden_ratio: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Ratio of hidden elements (0.0 to 1.0)",
+    )
+
+    # === Tag Analysis ===
+    unique_tags: list[str] = Field(
+        ...,
+        description="List of unique HTML tag names found (e.g., ['h1', 'p', 'span'])",
+    )
+    has_headings: bool = Field(
+        ...,
+        description="Whether any heading elements (h1-h6) were found",
+    )
+    tag_distribution: dict[str, int] = Field(
+        ...,
+        description="Count of each tag type (e.g., {'h1': 2, 'p': 10})",
+    )
+
+    # === Text Statistics ===
+    total_text_length: int = Field(
+        ...,
+        ge=0,
+        description="Total character count of all element text content",
+    )
+    avg_text_length: float = Field(
+        ...,
+        ge=0.0,
+        description="Average text length per element in characters",
+    )
+    min_text_length: int = Field(
+        ...,
+        ge=0,
+        description="Minimum text length among all elements",
+    )
+    max_text_length: int = Field(
+        ...,
+        ge=0,
+        description="Maximum text length among all elements",
+    )
+
+
+class VisionAIHints(BaseModel):
+    """Vision AI optimization hints for image sizing and tiling.
+
+    Provides model-specific compatibility information, resize impact
+    estimates, and tiling recommendations to optimize Vision AI
+    processing of screenshot images.
+    """
+
+    # === Image Dimensions ===
+    image_width: int = Field(
+        ...,
+        gt=0,
+        description="Image width in pixels",
+    )
+    image_height: int = Field(
+        ...,
+        gt=0,
+        description="Image height in pixels",
+    )
+    image_size_bytes: int = Field(
+        ...,
+        ge=0,
+        description="Image file size in bytes",
+    )
+
+    # === Document Dimensions (for full_page screenshots) ===
+    document_width: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Full document width in pixels (for full_page screenshots)",
+    )
+    document_height: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Full document height in pixels (for full_page screenshots)",
+    )
+
+    # === Model Compatibility Flags ===
+    claude_compatible: bool = Field(
+        ...,
+        description="Compatible with Claude Vision (max dimension <= 1568px)",
+    )
+    gemini_compatible: bool = Field(
+        ...,
+        description="Compatible with Gemini Vision (max dimension <= 3072px)",
+    )
+    gpt4v_compatible: bool = Field(
+        ...,
+        description="Compatible with GPT-4V (max dimension <= 2048px)",
+    )
+    qwen_compatible: bool = Field(
+        ...,
+        description="Compatible with Qwen-VL (max dimension <= 4096px)",
+    )
+
+    # === Resize Impact ===
+    estimated_resize_factor: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Estimated resize factor for target model (1.0 = no resize needed)",
+    )
+    coordinate_accuracy: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Coordinate accuracy after resize (1.0 = full accuracy)",
+    )
+
+    # === Per-Model Resize Impact (percentage of detail loss) ===
+    resize_impact_claude: float = Field(
+        ...,
+        ge=0.0,
+        description="Resize impact for Claude Vision (percentage, 0.0 = no resize needed)",
+    )
+    resize_impact_gemini: float = Field(
+        ...,
+        ge=0.0,
+        description="Resize impact for Gemini Vision (percentage, 0.0 = no resize needed)",
+    )
+    resize_impact_gpt4v: float = Field(
+        ...,
+        ge=0.0,
+        description="Resize impact for GPT-4V (percentage, 0.0 = no resize needed)",
+    )
+    resize_impact_qwen: float = Field(
+        ...,
+        ge=0.0,
+        description="Resize impact for Qwen-VL (percentage, 0.0 = no resize needed)",
+    )
+
+    # === Recommended Dimensions ===
+    recommended_width: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Recommended width for target model (None if no resize needed)",
+    )
+    recommended_height: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Recommended height for target model (None if no resize needed)",
+    )
+
+    # === Tiling Recommendations ===
+    tiling_recommended: bool = Field(
+        ...,
+        description="Whether image tiling is recommended for better results",
+    )
+    suggested_tile_count: int = Field(
+        ...,
+        ge=1,
+        description="Suggested number of tiles if tiling is recommended",
+    )
+    suggested_tile_size: Optional[dict[str, int]] = Field(
+        default=None,
+        description="Suggested tile dimensions {'width': int, 'height': int}",
+    )
+    tile_overlap_percent: float = Field(
+        default=15.0,
+        ge=0.0,
+        le=50.0,
+        description="Tile overlap percentage (default 15%)",
+    )
+    tiling_reason: Optional[str] = Field(
+        default=None,
+        description="Reason for tiling recommendation",
     )
 
 
@@ -264,6 +509,10 @@ class ScreenshotResponse(BaseModel):
     dom_extraction: Optional[DomExtractionResult] = Field(
         default=None,
         description="DOM extraction results, present when extract_dom was enabled",
+    )
+    vision_hints: Optional[VisionAIHints] = Field(
+        default=None,
+        description="Vision AI optimization hints, present when include_vision_hints was enabled",
     )
 
 

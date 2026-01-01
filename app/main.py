@@ -206,7 +206,12 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
         # Convert raw dict to DomExtractionResult if present
         dom_extraction = None
         if dom_result:
-            from app.models import BoundingRect, DomElement, DomExtractionResult
+            from app.models import (
+                BoundingRect,
+                DomElement,
+                DomExtractionResult,
+                QualityMetrics,
+            )
             from app.quality_assessment import assess_extraction_quality
 
             elements = [
@@ -226,6 +231,30 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
             # Assess extraction quality
             quality_result = assess_extraction_quality(elements)
 
+            # Convert metrics dataclass to Pydantic model if include_metrics=True
+            metrics = None
+            if (
+                request.extract_dom
+                and request.extract_dom.include_metrics
+                and quality_result.metrics
+            ):
+                metrics = QualityMetrics(
+                    element_count=quality_result.metrics.element_count,
+                    visible_count=quality_result.metrics.visible_count,
+                    hidden_count=quality_result.metrics.hidden_count,
+                    heading_count=quality_result.metrics.heading_count,
+                    unique_tag_count=quality_result.metrics.unique_tag_count,
+                    visible_ratio=quality_result.metrics.visible_ratio,
+                    hidden_ratio=quality_result.metrics.hidden_ratio,
+                    unique_tags=quality_result.metrics.unique_tags,
+                    has_headings=quality_result.metrics.has_headings,
+                    tag_distribution=quality_result.metrics.tag_distribution,
+                    total_text_length=quality_result.metrics.total_text_length,
+                    avg_text_length=quality_result.metrics.avg_text_length,
+                    min_text_length=quality_result.metrics.min_text_length,
+                    max_text_length=quality_result.metrics.max_text_length,
+                )
+
             dom_extraction = DomExtractionResult(
                 elements=elements,
                 viewport=dom_result["viewport"],
@@ -233,6 +262,37 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
                 element_count=dom_result["element_count"],
                 quality=quality_result.quality,
                 warnings=quality_result.warnings,
+                metrics=metrics,
+            )
+
+        # Generate vision hints if requested
+        vision_hints = None
+        if (
+            request.extract_dom
+            and request.extract_dom.include_vision_hints
+        ):
+            from app.quality_assessment import generate_vision_hints
+
+            # Get target model from request if specified
+            target_model = None
+            if request.extract_dom.target_vision_model:
+                target_model = request.extract_dom.target_vision_model.value
+
+            # Get document dimensions for full_page screenshots
+            doc_width = None
+            doc_height = None
+            if dom_result and request.screenshot_type.value == "full_page":
+                viewport = dom_result.get("viewport", {})
+                doc_width = viewport.get("document_width")
+                doc_height = viewport.get("document_height")
+
+            vision_hints = generate_vision_hints(
+                image_width=request.width,
+                image_height=request.height,
+                image_size_bytes=len(screenshot_bytes),
+                target_model=target_model,
+                document_width=doc_width,
+                document_height=doc_height,
             )
 
         return ScreenshotResponse(
@@ -245,6 +305,7 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
             capture_time_ms=round(capture_time, 2),
             image_base64=base64.b64encode(screenshot_bytes).decode("utf-8"),
             dom_extraction=dom_extraction,
+            vision_hints=vision_hints,
         )
     except Exception as e:
         raise HTTPException(

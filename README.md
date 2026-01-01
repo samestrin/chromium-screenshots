@@ -100,6 +100,23 @@ curl -X POST "http://localhost:8000/screenshot" \
   }' -o dashboard.png
 ```
 
+### 3. Vision AI Optimization
+Get quality metrics and model compatibility hints for Vision AI integrations.
+
+```bash
+curl -X POST "http://localhost:8000/screenshot/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://news.ycombinator.com",
+    "extract_dom": {
+      "enabled": true,
+      "include_metrics": true,
+      "include_vision_hints": true,
+      "target_vision_model": "claude"
+    }
+  }' | jq '{quality: .dom_extraction.quality, hints: .vision_hints}'
+```
+
 ## 📚 Documentation
 
 Detailed references for core features:

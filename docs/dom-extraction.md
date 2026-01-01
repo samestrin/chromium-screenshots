@@ -32,6 +32,9 @@ curl -X POST "http://localhost:8000/screenshot/json" \
 | `include_hidden` | boolean | `false` | Include `visibility:hidden` or `display:none` elements |
 | `min_text_length` | integer | `1` | Skip elements with less text |
 | `max_elements` | integer | `500` | Cap on returned elements |
+| `include_metrics` | boolean | `false` | Include detailed quality metrics |
+| `include_vision_hints` | boolean | `false` | Include Vision AI optimization hints |
+| `target_vision_model` | string | `null` | Target model: `claude`, `gemini`, `gpt4v`, `qwen-vl-max` |
 
 ### Default Selectors
 
@@ -91,6 +94,8 @@ When `extract_dom.enabled` is true, the response includes:
 | `element_count` | integer | Total elements returned |
 | `quality` | string | `good`, `low`, `poor`, or `empty` |
 | `warnings` | array | Quality warnings (see [Quality Assessment](quality-assessment.md)) |
+| `metrics` | object | Detailed quality metrics (when `include_metrics: true`) |
+| `vision_hints` | object | Vision AI optimization hints (when `include_vision_hints: true`) |
 
 ---
 
@@ -207,6 +212,76 @@ curl -X POST "http://localhost:8000/screenshot/json" \
     }
   }' | jq '.dom_extraction.elements[] | {tag: .tag_name, text: .text}'
 ```
+
+### Vision AI Optimization
+
+Get detailed metrics and Vision AI hints to optimize image sizing:
+
+```bash
+# Get quality metrics and Vision AI hints
+curl -X POST "http://localhost:8000/screenshot/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "extract_dom": {
+      "enabled": true,
+      "include_metrics": true,
+      "include_vision_hints": true,
+      "target_vision_model": "claude"
+    }
+  }' | jq '{metrics: .dom_extraction.metrics, hints: .vision_hints}'
+```
+
+Example response with Vision AI hints:
+
+```json
+{
+  "metrics": {
+    "element_count": 47,
+    "visible_count": 45,
+    "visible_ratio": 0.957,
+    "unique_tags": ["h1", "h2", "p", "a", "span"],
+    "has_headings": true
+  },
+  "hints": {
+    "image_width": 1920,
+    "image_height": 1080,
+    "claude_compatible": true,
+    "gemini_compatible": true,
+    "gpt4v_compatible": true,
+    "tiling_recommended": false,
+    "estimated_resize_factor": 1.0
+  }
+}
+```
+
+### Target Specific Vision Models
+
+When targeting a specific Vision AI model, set `target_vision_model` to get optimized hints:
+
+```bash
+# Optimize for Claude Vision
+curl -X POST "http://localhost:8000/screenshot/json" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "screenshot_type": "full_page",
+    "extract_dom": {
+      "enabled": true,
+      "include_vision_hints": true,
+      "target_vision_model": "claude"
+    }
+  }'
+```
+
+Model thresholds:
+
+| Model | Max Dimension | Best For |
+|-------|---------------|----------|
+| `claude` | 1568px | General analysis, code review |
+| `gemini` | 3072px | Large documents, dashboards |
+| `gpt4v` | 2048px | Detailed image understanding |
+| `qwen-vl-max` | 4096px | Very large screenshots |
 
 ---
 

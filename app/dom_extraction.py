@@ -208,7 +208,9 @@ function extractDomElements(options) {
         viewport: {
             width: window.innerWidth,
             height: window.innerHeight,
-            deviceScaleFactor: window.devicePixelRatio || 1
+            deviceScaleFactor: window.devicePixelRatio || 1,
+            document_width: document.documentElement.scrollWidth,
+            document_height: document.documentElement.scrollHeight
         },
         extraction_time_ms: endTime - startTime,
         element_count: elements.length

@@ -1002,3 +1002,809 @@ class TestScreenshotRequestStorage:
         assert len(request.cookies) == 1
         assert request.localStorage == {"wasp:sessionId": "abc123"}
         assert request.sessionStorage == {"temp": "data"}
+
+
+class TestDomExtractionOptionsMetricsFields:
+    """Tests for DomExtractionOptions opt-in metrics/vision hint fields."""
+
+    def test_dom_extraction_options_has_include_metrics_field(self):
+        """DomExtractionOptions has include_metrics field."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert hasattr(options, "include_metrics")
+
+    def test_dom_extraction_options_include_metrics_defaults_false(self):
+        """DomExtractionOptions include_metrics defaults to False."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert options.include_metrics is False
+
+    def test_dom_extraction_options_include_metrics_accepts_true(self):
+        """DomExtractionOptions include_metrics accepts True."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(include_metrics=True)
+        assert options.include_metrics is True
+
+    def test_dom_extraction_options_has_include_vision_hints_field(self):
+        """DomExtractionOptions has include_vision_hints field."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert hasattr(options, "include_vision_hints")
+
+    def test_dom_extraction_options_include_vision_hints_defaults_false(self):
+        """DomExtractionOptions include_vision_hints defaults to False."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert options.include_vision_hints is False
+
+    def test_dom_extraction_options_include_vision_hints_accepts_true(self):
+        """DomExtractionOptions include_vision_hints accepts True."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(include_vision_hints=True)
+        assert options.include_vision_hints is True
+
+    def test_dom_extraction_options_has_target_vision_model_field(self):
+        """DomExtractionOptions has target_vision_model field."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert hasattr(options, "target_vision_model")
+
+    def test_dom_extraction_options_target_vision_model_defaults_none(self):
+        """DomExtractionOptions target_vision_model defaults to None."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions()
+        assert options.target_vision_model is None
+
+    def test_dom_extraction_options_target_vision_model_accepts_claude(self):
+        """DomExtractionOptions target_vision_model accepts 'claude'."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(target_vision_model="claude")
+        assert options.target_vision_model == "claude"
+
+    def test_dom_extraction_options_target_vision_model_accepts_gemini(self):
+        """DomExtractionOptions target_vision_model accepts 'gemini'."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(target_vision_model="gemini")
+        assert options.target_vision_model == "gemini"
+
+    def test_dom_extraction_options_target_vision_model_accepts_gpt4v(self):
+        """DomExtractionOptions target_vision_model accepts 'gpt4v'."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(target_vision_model="gpt4v")
+        assert options.target_vision_model == "gpt4v"
+
+    def test_dom_extraction_options_target_vision_model_accepts_qwen(self):
+        """DomExtractionOptions target_vision_model accepts 'qwen-vl-max'."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(target_vision_model="qwen-vl-max")
+        assert options.target_vision_model == "qwen-vl-max"
+
+    def test_dom_extraction_options_target_vision_model_invalid_raises_error(self):
+        """DomExtractionOptions target_vision_model rejects invalid values."""
+        from app.models import DomExtractionOptions
+
+        with pytest.raises(ValidationError) as exc_info:
+            DomExtractionOptions(target_vision_model="invalid_model")
+        assert "target_vision_model" in str(exc_info.value).lower()
+
+    def test_dom_extraction_options_backward_compatibility(self):
+        """DomExtractionOptions works without new fields (backward compat)."""
+        from app.models import DomExtractionOptions
+
+        # Existing usage should still work
+        options = DomExtractionOptions(
+            enabled=True,
+            selectors=["h1", "p"],
+            include_hidden=False,
+            min_text_length=1,
+            max_elements=500
+        )
+        # Original fields work
+        assert options.enabled is True
+        assert options.selectors == ["h1", "p"]
+        # New fields have defaults
+        assert options.include_metrics is False
+        assert options.include_vision_hints is False
+        assert options.target_vision_model is None
+
+    def test_dom_extraction_options_all_new_fields_together(self):
+        """DomExtractionOptions accepts all new fields together."""
+        from app.models import DomExtractionOptions
+
+        options = DomExtractionOptions(
+            enabled=True,
+            include_metrics=True,
+            include_vision_hints=True,
+            target_vision_model="claude"
+        )
+        assert options.include_metrics is True
+        assert options.include_vision_hints is True
+        assert options.target_vision_model == "claude"
+
+    def test_dom_extraction_options_new_fields_have_descriptions(self):
+        """DomExtractionOptions new fields have descriptions for OpenAPI."""
+        from app.models import DomExtractionOptions
+
+        schema = DomExtractionOptions.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("include_metrics", {})
+        assert "description" in properties.get("include_vision_hints", {})
+        assert "description" in properties.get("target_vision_model", {})
+
+
+class TestQualityMetricsModel:
+    """Tests for QualityMetrics Pydantic model (Sprint 5.0 Story 01)."""
+
+    # === Model Existence and Structure ===
+
+    def test_quality_metrics_model_exists(self):
+        """QualityMetrics model exists and is importable."""
+        from app.models import QualityMetrics
+
+        assert QualityMetrics is not None
+
+    def test_quality_metrics_has_count_fields(self):
+        """QualityMetrics has all 5 count fields."""
+        from app.models import QualityMetrics
+
+        schema = QualityMetrics.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "element_count" in properties
+        assert "visible_count" in properties
+        assert "hidden_count" in properties
+        assert "heading_count" in properties
+        assert "unique_tag_count" in properties
+
+    def test_quality_metrics_has_ratio_fields(self):
+        """QualityMetrics has both ratio fields."""
+        from app.models import QualityMetrics
+
+        schema = QualityMetrics.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "visible_ratio" in properties
+        assert "hidden_ratio" in properties
+
+    def test_quality_metrics_has_tag_analysis_fields(self):
+        """QualityMetrics has tag analysis fields."""
+        from app.models import QualityMetrics
+
+        schema = QualityMetrics.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "unique_tags" in properties
+        assert "has_headings" in properties
+        assert "tag_distribution" in properties
+
+    def test_quality_metrics_has_text_stats_fields(self):
+        """QualityMetrics has text statistics fields."""
+        from app.models import QualityMetrics
+
+        schema = QualityMetrics.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "total_text_length" in properties
+        assert "avg_text_length" in properties
+        assert "min_text_length" in properties
+        assert "max_text_length" in properties
+
+    # === Model Instantiation ===
+
+    def test_quality_metrics_instantiation_with_valid_data(self):
+        """QualityMetrics can be instantiated with valid data."""
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=25,
+            visible_count=20,
+            hidden_count=5,
+            heading_count=3,
+            unique_tag_count=6,
+            visible_ratio=0.8,
+            hidden_ratio=0.2,
+            unique_tags=["h1", "h2", "p", "span", "a", "li"],
+            has_headings=True,
+            tag_distribution={"h1": 1, "h2": 2, "p": 10, "span": 5, "a": 4, "li": 3},
+            total_text_length=1500,
+            avg_text_length=60.0,
+            min_text_length=5,
+            max_text_length=200,
+        )
+        assert metrics.element_count == 25
+        assert metrics.visible_count == 20
+        assert metrics.visible_ratio == 0.8
+        assert metrics.has_headings is True
+
+    def test_quality_metrics_empty_extraction(self):
+        """QualityMetrics handles empty extraction (zero elements)."""
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=0,
+            visible_count=0,
+            hidden_count=0,
+            heading_count=0,
+            unique_tag_count=0,
+            visible_ratio=0.0,
+            hidden_ratio=0.0,
+            unique_tags=[],
+            has_headings=False,
+            tag_distribution={},
+            total_text_length=0,
+            avg_text_length=0.0,
+            min_text_length=0,
+            max_text_length=0,
+        )
+        assert metrics.element_count == 0
+        assert metrics.unique_tags == []
+        assert metrics.tag_distribution == {}
+
+    def test_quality_metrics_all_hidden_elements(self):
+        """QualityMetrics handles all hidden elements case."""
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=10,
+            visible_count=0,
+            hidden_count=10,
+            heading_count=0,
+            unique_tag_count=1,
+            visible_ratio=0.0,
+            hidden_ratio=1.0,
+            unique_tags=["div"],
+            has_headings=False,
+            tag_distribution={"div": 10},
+            total_text_length=0,
+            avg_text_length=0.0,
+            min_text_length=0,
+            max_text_length=0,
+        )
+        assert metrics.hidden_ratio == 1.0
+        assert metrics.visible_ratio == 0.0
+        assert metrics.hidden_count == 10
+
+    def test_quality_metrics_single_tag_type(self):
+        """QualityMetrics handles single tag type extraction."""
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=20,
+            visible_count=20,
+            hidden_count=0,
+            heading_count=0,
+            unique_tag_count=1,
+            visible_ratio=1.0,
+            hidden_ratio=0.0,
+            unique_tags=["p"],
+            has_headings=False,
+            tag_distribution={"p": 20},
+            total_text_length=1000,
+            avg_text_length=50.0,
+            min_text_length=10,
+            max_text_length=100,
+        )
+        assert metrics.unique_tags == ["p"]
+        assert metrics.unique_tag_count == 1
+        assert metrics.tag_distribution == {"p": 20}
+
+    # === Field Validation ===
+
+    def test_quality_metrics_count_fields_reject_negative(self):
+        """QualityMetrics count fields reject negative values."""
+        from app.models import QualityMetrics
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityMetrics(
+                element_count=-1,
+                visible_count=0,
+                hidden_count=0,
+                heading_count=0,
+                unique_tag_count=0,
+                visible_ratio=0.0,
+                hidden_ratio=0.0,
+                unique_tags=[],
+                has_headings=False,
+                tag_distribution={},
+                total_text_length=0,
+                avg_text_length=0.0,
+                min_text_length=0,
+                max_text_length=0,
+            )
+        assert "element_count" in str(exc_info.value).lower()
+
+    def test_quality_metrics_ratio_rejects_above_one(self):
+        """QualityMetrics ratio fields reject values > 1.0."""
+        from app.models import QualityMetrics
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityMetrics(
+                element_count=10,
+                visible_count=10,
+                hidden_count=0,
+                heading_count=0,
+                unique_tag_count=1,
+                visible_ratio=1.5,  # Invalid: > 1.0
+                hidden_ratio=0.0,
+                unique_tags=["p"],
+                has_headings=False,
+                tag_distribution={"p": 10},
+                total_text_length=100,
+                avg_text_length=10.0,
+                min_text_length=5,
+                max_text_length=20,
+            )
+        assert "visible_ratio" in str(exc_info.value).lower()
+
+    def test_quality_metrics_ratio_rejects_below_zero(self):
+        """QualityMetrics ratio fields reject values < 0.0."""
+        from app.models import QualityMetrics
+
+        with pytest.raises(ValidationError) as exc_info:
+            QualityMetrics(
+                element_count=10,
+                visible_count=10,
+                hidden_count=0,
+                heading_count=0,
+                unique_tag_count=1,
+                visible_ratio=1.0,
+                hidden_ratio=-0.1,  # Invalid: < 0.0
+                unique_tags=["p"],
+                has_headings=False,
+                tag_distribution={"p": 10},
+                total_text_length=100,
+                avg_text_length=10.0,
+                min_text_length=5,
+                max_text_length=20,
+            )
+        assert "hidden_ratio" in str(exc_info.value).lower()
+
+    # === Serialization ===
+
+    def test_quality_metrics_serializes_to_dict(self):
+        """QualityMetrics serializes to dictionary correctly."""
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=5,
+            visible_count=4,
+            hidden_count=1,
+            heading_count=1,
+            unique_tag_count=3,
+            visible_ratio=0.8,
+            hidden_ratio=0.2,
+            unique_tags=["h1", "p", "span"],
+            has_headings=True,
+            tag_distribution={"h1": 1, "p": 3, "span": 1},
+            total_text_length=250,
+            avg_text_length=50.0,
+            min_text_length=10,
+            max_text_length=100,
+        )
+        data = metrics.model_dump()
+
+        assert data["element_count"] == 5
+        assert data["visible_ratio"] == 0.8
+        assert data["unique_tags"] == ["h1", "p", "span"]
+        assert data["tag_distribution"] == {"h1": 1, "p": 3, "span": 1}
+        assert data["has_headings"] is True
+
+    def test_quality_metrics_serializes_to_json(self):
+        """QualityMetrics serializes to JSON string correctly."""
+        import json
+
+        from app.models import QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=5,
+            visible_count=4,
+            hidden_count=1,
+            heading_count=1,
+            unique_tag_count=3,
+            visible_ratio=0.8,
+            hidden_ratio=0.2,
+            unique_tags=["h1", "p", "span"],
+            has_headings=True,
+            tag_distribution={"h1": 1, "p": 3, "span": 1},
+            total_text_length=250,
+            avg_text_length=50.0,
+            min_text_length=10,
+            max_text_length=100,
+        )
+        json_str = metrics.model_dump_json()
+        data = json.loads(json_str)
+
+        assert data["element_count"] == 5
+        assert data["visible_ratio"] == 0.8
+        assert isinstance(data["unique_tags"], list)
+        assert isinstance(data["tag_distribution"], dict)
+
+    # === Field Descriptions ===
+
+    def test_quality_metrics_fields_have_descriptions(self):
+        """QualityMetrics fields have descriptions for OpenAPI."""
+        from app.models import QualityMetrics
+
+        schema = QualityMetrics.model_json_schema()
+        properties = schema.get("properties", {})
+
+        # Check key fields have descriptions
+        assert "description" in properties.get("element_count", {})
+        assert "description" in properties.get("visible_ratio", {})
+        assert "description" in properties.get("unique_tags", {})
+        assert "description" in properties.get("tag_distribution", {})
+        assert "description" in properties.get("avg_text_length", {})
+
+    def test_quality_metrics_has_docstring(self):
+        """QualityMetrics model has a docstring."""
+        from app.models import QualityMetrics
+
+        assert QualityMetrics.__doc__ is not None
+        assert len(QualityMetrics.__doc__) > 10
+
+
+class TestDomExtractionResultMetrics:
+    """Tests for DomExtractionResult.metrics field (Sprint 5.0 Story 01)."""
+
+    def test_dom_extraction_result_has_metrics_field(self):
+        """DomExtractionResult has metrics field."""
+        from app.models import DomExtractionResult
+
+        schema = DomExtractionResult.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "metrics" in properties
+
+    def test_dom_extraction_result_metrics_defaults_to_none(self):
+        """DomExtractionResult.metrics defaults to None."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+            extraction_time_ms=10.5,
+            element_count=0,
+        )
+        assert result.metrics is None
+
+    def test_dom_extraction_result_metrics_accepts_quality_metrics(self):
+        """DomExtractionResult.metrics accepts QualityMetrics instance."""
+        from app.models import DomExtractionResult, QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=5,
+            visible_count=4,
+            hidden_count=1,
+            heading_count=1,
+            unique_tag_count=3,
+            visible_ratio=0.8,
+            hidden_ratio=0.2,
+            unique_tags=["h1", "p", "span"],
+            has_headings=True,
+            tag_distribution={"h1": 1, "p": 3, "span": 1},
+            total_text_length=250,
+            avg_text_length=50.0,
+            min_text_length=10,
+            max_text_length=100,
+        )
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+            extraction_time_ms=10.5,
+            element_count=5,
+            metrics=metrics,
+        )
+        assert result.metrics is not None
+        assert result.metrics.element_count == 5
+        assert result.metrics.visible_ratio == 0.8
+
+    def test_dom_extraction_result_metrics_serializes_to_dict(self):
+        """DomExtractionResult with metrics serializes correctly."""
+        from app.models import DomExtractionResult, QualityMetrics
+
+        metrics = QualityMetrics(
+            element_count=5,
+            visible_count=4,
+            hidden_count=1,
+            heading_count=1,
+            unique_tag_count=3,
+            visible_ratio=0.8,
+            hidden_ratio=0.2,
+            unique_tags=["h1", "p", "span"],
+            has_headings=True,
+            tag_distribution={"h1": 1, "p": 3, "span": 1},
+            total_text_length=250,
+            avg_text_length=50.0,
+            min_text_length=10,
+            max_text_length=100,
+        )
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+            extraction_time_ms=10.5,
+            element_count=5,
+            metrics=metrics,
+        )
+        data = result.model_dump()
+        assert "metrics" in data
+        assert data["metrics"]["element_count"] == 5
+        assert data["metrics"]["visible_ratio"] == 0.8
+
+    def test_dom_extraction_result_metrics_none_serialization(self):
+        """DomExtractionResult with metrics=None serializes correctly."""
+        from app.models import DomExtractionResult
+
+        result = DomExtractionResult(
+            elements=[],
+            viewport={"width": 1920, "height": 1080, "deviceScaleFactor": 1},
+            extraction_time_ms=10.5,
+            element_count=0,
+        )
+        data = result.model_dump()
+        # metrics should be None (not omitted) in model_dump
+        assert "metrics" in data
+        assert data["metrics"] is None
+
+    def test_dom_extraction_result_metrics_field_has_description(self):
+        """DomExtractionResult.metrics has description for OpenAPI."""
+        from app.models import DomExtractionResult
+
+        schema = DomExtractionResult.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("metrics", {})
+
+
+class TestVisionAIHintsModel:
+    """Tests for VisionAIHints Pydantic model (Sprint 5.0 Story 02)."""
+
+    # === Model Existence and Structure ===
+
+    def test_vision_ai_hints_model_exists(self):
+        """VisionAIHints model exists and is importable."""
+        from app.models import VisionAIHints
+
+        assert VisionAIHints is not None
+
+    def test_vision_ai_hints_has_dimension_fields(self):
+        """VisionAIHints has image dimension fields."""
+        from app.models import VisionAIHints
+
+        schema = VisionAIHints.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "image_width" in properties
+        assert "image_height" in properties
+        assert "image_size_bytes" in properties
+
+    def test_vision_ai_hints_has_compatibility_fields(self):
+        """VisionAIHints has model compatibility flag fields."""
+        from app.models import VisionAIHints
+
+        schema = VisionAIHints.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "claude_compatible" in properties
+        assert "gemini_compatible" in properties
+        assert "gpt4v_compatible" in properties
+        assert "qwen_compatible" in properties
+
+    def test_vision_ai_hints_has_resize_fields(self):
+        """VisionAIHints has resize impact fields."""
+        from app.models import VisionAIHints
+
+        schema = VisionAIHints.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "estimated_resize_factor" in properties
+        assert "coordinate_accuracy" in properties
+
+    def test_vision_ai_hints_has_tiling_fields(self):
+        """VisionAIHints has tiling recommendation fields."""
+        from app.models import VisionAIHints
+
+        schema = VisionAIHints.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "tiling_recommended" in properties
+        assert "suggested_tile_count" in properties
+        assert "suggested_tile_size" in properties
+        assert "tiling_reason" in properties
+
+    # === Model Instantiation ===
+
+    def test_vision_ai_hints_instantiation_all_compatible(self):
+        """VisionAIHints can be instantiated with all models compatible."""
+        from app.models import VisionAIHints
+
+        hints = VisionAIHints(
+            image_width=1280,
+            image_height=720,
+            image_size_bytes=150000,
+            claude_compatible=True,
+            gemini_compatible=True,
+            gpt4v_compatible=True,
+            qwen_compatible=True,
+            estimated_resize_factor=1.0,
+            coordinate_accuracy=1.0,
+            resize_impact_claude=0.0,
+            resize_impact_gemini=0.0,
+            resize_impact_gpt4v=0.0,
+            resize_impact_qwen=0.0,
+            tiling_recommended=False,
+            suggested_tile_count=1,
+            suggested_tile_size=None,
+            tiling_reason=None,
+        )
+        assert hints.claude_compatible is True
+        assert hints.gemini_compatible is True
+        assert hints.gpt4v_compatible is True
+        assert hints.qwen_compatible is True
+        assert hints.tiling_recommended is False
+
+    def test_vision_ai_hints_instantiation_partial_compatible(self):
+        """VisionAIHints handles partial compatibility."""
+        from app.models import VisionAIHints
+
+        hints = VisionAIHints(
+            image_width=1920,
+            image_height=1080,
+            image_size_bytes=500000,
+            claude_compatible=False,  # Exceeds 1568px
+            gemini_compatible=True,
+            gpt4v_compatible=True,
+            qwen_compatible=True,
+            estimated_resize_factor=0.817,
+            coordinate_accuracy=0.817,
+            resize_impact_claude=18.3,  # (1920-1568)/1920 * 100
+            resize_impact_gemini=0.0,
+            resize_impact_gpt4v=0.0,
+            resize_impact_qwen=0.0,
+            tiling_recommended=False,
+            suggested_tile_count=1,
+            suggested_tile_size=None,
+            tiling_reason=None,
+        )
+        assert hints.claude_compatible is False
+        assert hints.gemini_compatible is True
+
+    def test_vision_ai_hints_with_tiling_recommended(self):
+        """VisionAIHints handles tiling recommendations."""
+        from app.models import VisionAIHints
+
+        hints = VisionAIHints(
+            image_width=4096,
+            image_height=8000,
+            image_size_bytes=2000000,
+            claude_compatible=False,
+            gemini_compatible=False,
+            gpt4v_compatible=False,
+            qwen_compatible=False,
+            estimated_resize_factor=0.25,
+            coordinate_accuracy=0.25,
+            resize_impact_claude=80.4,
+            resize_impact_gemini=61.6,
+            resize_impact_gpt4v=74.4,
+            resize_impact_qwen=48.8,
+            tiling_recommended=True,
+            suggested_tile_count=6,
+            suggested_tile_size={"width": 1024, "height": 1333},
+            tiling_reason="Image exceeds all model limits",
+        )
+        assert hints.tiling_recommended is True
+        assert hints.suggested_tile_count == 6
+        assert hints.tiling_reason == "Image exceeds all model limits"
+
+    # === Field Validation ===
+
+    def test_vision_ai_hints_dimension_fields_positive(self):
+        """VisionAIHints dimension fields must be positive."""
+        from app.models import VisionAIHints
+
+        with pytest.raises(ValidationError) as exc_info:
+            VisionAIHints(
+                image_width=-1,
+                image_height=720,
+                image_size_bytes=150000,
+                claude_compatible=True,
+                gemini_compatible=True,
+                gpt4v_compatible=True,
+                qwen_compatible=True,
+                estimated_resize_factor=1.0,
+                coordinate_accuracy=1.0,
+                tiling_recommended=False,
+                suggested_tile_count=1,
+                suggested_tile_size=None,
+                tiling_reason=None,
+            )
+        assert "image_width" in str(exc_info.value).lower()
+
+    def test_vision_ai_hints_resize_factor_range(self):
+        """VisionAIHints resize factor should be 0-1 range."""
+        from app.models import VisionAIHints
+
+        hints = VisionAIHints(
+            image_width=1920,
+            image_height=1080,
+            image_size_bytes=500000,
+            claude_compatible=False,
+            gemini_compatible=True,
+            gpt4v_compatible=True,
+            qwen_compatible=True,
+            estimated_resize_factor=0.5,
+            coordinate_accuracy=0.5,
+            resize_impact_claude=18.3,
+            resize_impact_gemini=0.0,
+            resize_impact_gpt4v=0.0,
+            resize_impact_qwen=0.0,
+            tiling_recommended=False,
+            suggested_tile_count=1,
+            suggested_tile_size=None,
+            tiling_reason=None,
+        )
+        assert 0 <= hints.estimated_resize_factor <= 1
+        assert 0 <= hints.coordinate_accuracy <= 1
+
+    # === Serialization ===
+
+    def test_vision_ai_hints_serializes_to_dict(self):
+        """VisionAIHints serializes to dictionary correctly."""
+        from app.models import VisionAIHints
+
+        hints = VisionAIHints(
+            image_width=1280,
+            image_height=720,
+            image_size_bytes=150000,
+            claude_compatible=True,
+            gemini_compatible=True,
+            gpt4v_compatible=True,
+            qwen_compatible=True,
+            estimated_resize_factor=1.0,
+            coordinate_accuracy=1.0,
+            resize_impact_claude=0.0,
+            resize_impact_gemini=0.0,
+            resize_impact_gpt4v=0.0,
+            resize_impact_qwen=0.0,
+            tiling_recommended=False,
+            suggested_tile_count=1,
+            suggested_tile_size=None,
+            tiling_reason=None,
+        )
+        data = hints.model_dump()
+
+        assert data["image_width"] == 1280
+        assert data["claude_compatible"] is True
+        assert data["tiling_recommended"] is False
+
+    # === Field Descriptions ===
+
+    def test_vision_ai_hints_fields_have_descriptions(self):
+        """VisionAIHints fields have descriptions for OpenAPI."""
+        from app.models import VisionAIHints
+
+        schema = VisionAIHints.model_json_schema()
+        properties = schema.get("properties", {})
+
+        assert "description" in properties.get("image_width", {})
+        assert "description" in properties.get("claude_compatible", {})
+        assert "description" in properties.get("tiling_recommended", {})
+
+    def test_vision_ai_hints_has_docstring(self):
+        """VisionAIHints model has a docstring."""
+        from app.models import VisionAIHints
+
+        assert VisionAIHints.__doc__ is not None
+        assert len(VisionAIHints.__doc__) > 10
