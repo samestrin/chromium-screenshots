@@ -1110,3 +1110,179 @@ class TestApiVisionHintsIntegration:
 
         # Vision hints field should be in schema
         assert "vision_hints" in properties
+
+
+# =============================================================================
+# Sprint 6.0: Tiled Screenshot Endpoint Tests
+# =============================================================================
+
+
+class TestTiledScreenshotEndpoint:
+    """Tests for POST /screenshot/tiled endpoint.
+
+    AC: 01-02 - Tiled Endpoint
+    """
+
+    def test_tiled_endpoint_exists(self):
+        """POST /screenshot/tiled endpoint exists."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.post(
+            "/screenshot/tiled",
+            json={"url": "https://example.com"},
+        )
+
+        # Should not be 404 Method Not Allowed
+        assert response.status_code != 405
+        assert response.status_code != 404
+
+    def test_tiled_endpoint_success(self):
+        """POST /screenshot/tiled returns 200 with tiles."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.post(
+            "/screenshot/tiled",
+            json={"url": "https://example.com"},
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            assert data["success"] is True
+            assert "tiles" in data
+            assert len(data["tiles"]) >= 1
+            assert "tile_config" in data
+            assert "coordinate_mapping" in data
+
+    def test_tiled_endpoint_default_values(self):
+        """POST /screenshot/tiled uses default tile dimensions."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.post(
+            "/screenshot/tiled",
+            json={"url": "https://example.com"},
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            config = data.get("tile_config", {})
+            # Default values: 1568x1568, 50 overlap
+            assert config.get("tile_width") == 1568
+            assert config.get("tile_height") == 1568
+            assert config.get("overlap") == 50
+
+    def test_tiled_endpoint_custom_config(self):
+        """POST /screenshot/tiled accepts custom tile dimensions."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.post(
+            "/screenshot/tiled",
+            json={
+                "url": "https://example.com",
+                "tile_width": 1000,
+                "tile_height": 800,
+                "overlap": 100,
+            },
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            config = data.get("tile_config", {})
+            assert config.get("tile_width") == 1000
+            assert config.get("tile_height") == 800
+            assert config.get("overlap") == 100
+
+    def test_tiled_endpoint_invalid_overlap(self):
+        """POST /screenshot/tiled returns 422 for overlap >= tile dimension."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.post(
+            "/screenshot/tiled",
+            json={
+                "url": "https://example.com",
+                "tile_width": 800,
+                "tile_height": 800,
+                "overlap": 900,  # Greater than tile dimensions
+            },
+        )
+
+        # Should return validation error
+        assert response.status_code == 422
+
+    def test_tiled_endpoint_max_tile_count_respected(self):
+        """POST /screenshot/tiled respects max_tile_count parameter."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.post(
+            "/screenshot/tiled",
+            json={
+                "url": "https://example.com",
+                "tile_width": 1200,
+                "tile_height": 100,  # Small height to generate many tiles
+                "max_tile_count": 5,
+            },
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            assert len(data["tiles"]) <= 5
+
+    def test_tiled_endpoint_response_structure(self):
+        """POST /screenshot/tiled response has expected structure."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.post(
+            "/screenshot/tiled",
+            json={"url": "https://example.com"},
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            # Check all expected fields
+            assert "success" in data
+            assert "url" in data
+            assert "full_page_dimensions" in data
+            assert "tile_config" in data
+            assert "tiles" in data
+            assert "capture_time_ms" in data
+            assert "coordinate_mapping" in data
+
+            # Check tile structure
+            if data["tiles"]:
+                tile = data["tiles"][0]
+                assert "index" in tile
+                assert "row" in tile
+                assert "column" in tile
+                assert "bounds" in tile
+                assert "image_base64" in tile
+                assert "file_size_bytes" in tile
+
+    def test_tiled_endpoint_openapi_schema(self):
+        """OpenAPI schema includes tiled endpoint."""
+        from app.main import app
+
+        client = TestClient(app, raise_server_exceptions=False)
+
+        response = client.get("/openapi.json")
+        openapi = response.json()
+
+        paths = openapi.get("paths", {})
+        # Should have /screenshot/tiled path
+        assert "/screenshot/tiled" in paths
+
+        tiled_path = paths.get("/screenshot/tiled", {})
+        # Should have POST method
+        assert "post" in tiled_path

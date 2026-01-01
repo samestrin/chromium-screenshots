@@ -141,6 +141,18 @@ function getZIndex(el) {
     return parseInt(zIndex, 10) || 0;
 }
 
+// Check if an element has fixed or sticky positioning
+function isFixed(el) {
+    if (!el) return false;
+
+    const style = window.getComputedStyle(el);
+    const position = style.position;
+
+    // Elements with position:fixed or position:sticky need special handling
+    // in tiled capture as they appear in the same position across all tiles
+    return position === 'fixed' || position === 'sticky';
+}
+
 // Main extraction function
 function extractDomElements(options) {
     const startTime = performance.now();
@@ -197,7 +209,8 @@ function extractDomElements(options) {
                 fontWeight: computedStyle.fontWeight
             },
             is_visible: visible,
-            z_index: getZIndex(el)
+            z_index: getZIndex(el),
+            is_fixed: isFixed(el)
         });
     }
 

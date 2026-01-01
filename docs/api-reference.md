@@ -9,6 +9,7 @@
 | `/screenshot` | GET | Quick capture via query params |
 | `/screenshot` | POST | Full control via JSON body |
 | `/screenshot/json` | POST | Returns metadata + base64 image |
+| `/screenshot/tiled` | POST | Tiled capture for Vision AI |
 | `/health` | GET | Service health check |
 | `/docs` | GET | Swagger UI |
 | `/redoc` | GET | ReDoc UI |
@@ -148,6 +149,150 @@ curl "http://localhost:8000/screenshot?url=https://example.com&width=1280&format
 ### Query Parameters
 
 Same as POST body parameters, but as query string.
+
+---
+
+## POST /screenshot/tiled
+
+Captures full-page screenshots as a grid of viewport-sized tiles, optimized for Vision AI processing. Each tile is sized to fit within model input limits while maintaining coordinate accuracy.
+
+### Request Body
+
+```json
+{
+  "url": "https://example.com",
+  "tile_width": 1568,
+  "tile_height": 1568,
+  "overlap": 50,
+  "max_tile_count": 20,
+  "target_vision_model": "claude",
+  "format": "png",
+  "quality": 90,
+  "wait_for_timeout": 0,
+  "wait_for_selector": null,
+  "delay": 0,
+  "dark_mode": false,
+  "block_ads": false,
+  "cookies": [],
+  "localStorage": {},
+  "sessionStorage": {},
+  "extract_dom": {}
+}
+```
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `url` | string | *required* | URL to capture |
+| `tile_width` | integer | 1568 | Width of each tile in pixels |
+| `tile_height` | integer | 1568 | Height of each tile in pixels |
+| `overlap` | integer | 50 | Overlap between adjacent tiles in pixels |
+| `max_tile_count` | integer | 20 | Maximum tiles to generate (max: 1000) |
+| `target_vision_model` | string | null | Vision AI preset: `claude`, `gemini`, `gpt4v` |
+| `format` | string | `png` | `png` or `jpeg` |
+| `quality` | integer | 90 | JPEG quality (1-100) |
+| `wait_for_timeout` | integer | 0 | Extra wait after load (distributed across tiles) |
+| `wait_for_selector` | string | null | CSS selector to wait for |
+| `delay` | integer | 0 | Delay before capture (ms) |
+| `dark_mode` | boolean | false | Emulate dark color scheme |
+| `block_ads` | boolean | false | Block common ad domains |
+| `cookies` | array | null | Cookies to inject |
+| `localStorage` | object | null | localStorage key-value pairs |
+| `sessionStorage` | object | null | sessionStorage key-value pairs |
+| `extract_dom` | object | null | DOM extraction options |
+
+### Vision AI Presets
+
+When `target_vision_model` is specified, tile dimensions are automatically configured:
+
+| Model | Tile Size | Overlap | Description |
+|-------|-----------|---------|-------------|
+| `claude` | 1568x1568 | 50px | Optimized for Claude Vision |
+| `gemini` | 3072x3072 | 100px | Optimized for Gemini Vision |
+| `gpt4v` | 2048x2048 | 75px | Optimized for GPT-4V |
+
+User-specified `tile_width`, `tile_height`, or `overlap` override preset values.
+
+### Response Body
+
+```json
+{
+  "success": true,
+  "url": "https://example.com",
+  "full_page_dimensions": {"width": 1920, "height": 5000},
+  "tile_config": {
+    "tile_width": 1568,
+    "tile_height": 1568,
+    "overlap": 50,
+    "total_tiles": 4,
+    "grid": {"rows": 4, "columns": 1},
+    "applied_preset": "claude"
+  },
+  "tiles": [
+    {
+      "index": 0,
+      "row": 0,
+      "column": 0,
+      "bounds": {"x": 0, "y": 0, "width": 1568, "height": 1568},
+      "image_base64": "iVBORw0KGgo...",
+      "file_size_bytes": 145832,
+      "dom_extraction": {}
+    }
+  ],
+  "capture_time_ms": 2345.67,
+  "coordinate_mapping": {
+    "type": "tile_offset",
+    "instructions": "Add tile bounds.x/y to element coordinates for full-page position",
+    "full_page_width": 1920,
+    "full_page_height": 5000
+  }
+}
+```
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | boolean | Always `true` on success |
+| `url` | string | Captured URL |
+| `full_page_dimensions` | object | Full page `{width, height}` |
+| `tile_config` | object | Tile configuration used |
+| `tiles` | array | Array of [Tile](#tile-object) objects |
+| `capture_time_ms` | float | Total capture time |
+| `coordinate_mapping` | object | Instructions for coordinate conversion |
+
+### Tile Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `index` | integer | Tile index (0-based) |
+| `row` | integer | Grid row (0-based) |
+| `column` | integer | Grid column (0-based) |
+| `bounds` | object | Tile bounds `{x, y, width, height}` |
+| `image_base64` | string | Base64-encoded tile image |
+| `file_size_bytes` | integer | Tile image size in bytes |
+| `dom_extraction` | object | DOM extraction for this tile (if enabled) |
+
+### Error Responses
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Page requires more tiles than `max_tile_count` |
+| 422 | Validation error (overlap >= tile dimensions) |
+| 500 | Capture failed |
+
+### Example: Capture with Claude Preset
+
+```bash
+curl -X POST "http://localhost:8000/screenshot/tiled" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://example.com",
+    "target_vision_model": "claude",
+    "extract_dom": {"enabled": true}
+  }'
+```
 
 ---
 

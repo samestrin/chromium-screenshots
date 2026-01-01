@@ -122,7 +122,10 @@ Each element in the `elements` array:
     "fontWeight": "700"
   },
   "is_visible": true,
-  "z_index": 0
+  "z_index": 0,
+  "is_fixed": false,
+  "tile_index": null,
+  "tile_relative_rect": null
 }
 ```
 
@@ -136,6 +139,44 @@ Each element in the `elements` array:
 | `computed_style` | object | 4 key CSS properties |
 | `is_visible` | boolean | Visibility state at capture time |
 | `z_index` | integer | Stacking order |
+| `is_fixed` | boolean | True if element has `position: fixed` or `position: sticky` |
+| `tile_index` | integer | Index of tile containing this element (tiled captures only) |
+| `tile_relative_rect` | object | Original tile-relative position before coordinate adjustment (tiled captures only) |
+
+### Fixed Element Detection
+
+Elements with `position: fixed` or `position: sticky` CSS are marked with `is_fixed: true`. This helps identify elements that appear in multiple tiles (like sticky headers or floating navigation):
+
+```json
+{
+  "tag_name": "nav",
+  "text": "Home | Products | Contact",
+  "is_fixed": true,
+  "rect": {"x": 0, "y": 0, "width": 1920, "height": 60}
+}
+```
+
+**Use case**: When processing tiled screenshots, filter out duplicates by checking `is_fixed`. Keep fixed elements only from the first tile to avoid counting them multiple times.
+
+### Tiled Capture Metadata
+
+When using `/screenshot/tiled`, each element includes tile metadata:
+
+- **`tile_index`**: Which tile (0-based) this element was extracted from
+- **`tile_relative_rect`**: The element's position within its tile (before coordinate adjustment)
+- **`rect`**: Absolute full-page coordinates (tile offset already applied)
+
+```json
+{
+  "tag_name": "p",
+  "text": "Content in tile 2",
+  "tile_index": 2,
+  "tile_relative_rect": {"x": 100, "y": 200, "width": 300, "height": 20},
+  "rect": {"x": 100, "y": 1768, "width": 300, "height": 20}
+}
+```
+
+**Coordinate conversion**: `rect.y = tile_relative_rect.y + tile.bounds.y`
 
 ### Bounding Box
 

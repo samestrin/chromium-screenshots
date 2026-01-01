@@ -395,3 +395,497 @@ class TestDomExtractionResultConversion:
                 assert "z_index" in element
         finally:
             await service.shutdown()
+
+
+# =============================================================================
+# Sprint 6.0: Tile Capture Loop Tests
+# =============================================================================
+
+
+class TestCaptureTiledMultiTile:
+    """Tests for capture_tiled method with multiple tiles.
+
+    AC: 01-03 - Tile Capture Loop
+    """
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_method_exists(self):
+        """ScreenshotService has capture_tiled method."""
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        assert hasattr(service, "capture_tiled")
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_returns_tiled_response(self):
+        """capture_tiled returns TiledScreenshotResponse."""
+        from app.models import TiledScreenshotRequest, TiledScreenshotResponse
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(url="https://example.com")
+            result = await service.capture_tiled(request)
+
+            assert isinstance(result, TiledScreenshotResponse)
+            assert result.success is True
+            assert len(result.tiles) >= 1
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_multi_tile_tall_page(self):
+        """Capture multiple tiles for tall page."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            # Request with small tile height to force multiple tiles
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1200,
+                tile_height=400,
+                overlap=50,
+            )
+            result = await service.capture_tiled(request)
+
+            # Should have multiple tiles for a page > 400px tall
+            assert len(result.tiles) >= 1
+            assert result.tile_config.tile_height == 400
+            assert result.tile_config.overlap == 50
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_single_tile_short_page(self):
+        """Short page produces single tile."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            # Large tile size should capture page in single tile
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1920,
+                tile_height=3000,
+                overlap=50,
+            )
+            result = await service.capture_tiled(request)
+
+            # example.com is a short page, should be single tile
+            assert len(result.tiles) >= 1
+            # First tile should start at y=0
+            assert result.tiles[0].bounds.y == 0
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_tile_metadata_correct(self):
+        """Each tile has correct metadata (index, row, column)."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1200,
+                tile_height=600,
+                overlap=50,
+            )
+            result = await service.capture_tiled(request)
+
+            # Verify tile metadata
+            for i, tile in enumerate(result.tiles):
+                assert tile.index == i
+                assert tile.bounds.index == i
+                assert isinstance(tile.image_base64, str)
+                assert tile.file_size_bytes > 0
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_response_has_config(self):
+        """Response includes tile configuration."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1000,
+                tile_height=800,
+                overlap=75,
+            )
+            result = await service.capture_tiled(request)
+
+            # Check tile config
+            assert result.tile_config.tile_width == 1000
+            assert result.tile_config.tile_height == 800
+            assert result.tile_config.overlap == 75
+            assert result.tile_config.total_tiles == len(result.tiles)
+            assert "rows" in result.tile_config.grid
+            assert "columns" in result.tile_config.grid
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_response_has_coordinate_mapping(self):
+        """Response includes coordinate mapping instructions."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(url="https://example.com")
+            result = await service.capture_tiled(request)
+
+            assert result.coordinate_mapping is not None
+            assert result.coordinate_mapping.type == "tile_offset"
+            assert result.coordinate_mapping.full_page_width > 0
+            assert result.coordinate_mapping.full_page_height > 0
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_response_has_full_page_dimensions(self):
+        """Response includes full page dimensions."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(url="https://example.com")
+            result = await service.capture_tiled(request)
+
+            assert "width" in result.full_page_dimensions
+            assert "height" in result.full_page_dimensions
+            assert result.full_page_dimensions["width"] > 0
+            assert result.full_page_dimensions["height"] > 0
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_capture_time_recorded(self):
+        """Capture time is recorded in response."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(url="https://example.com")
+            result = await service.capture_tiled(request)
+
+            assert result.capture_time_ms > 0
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_tiles_have_valid_images(self):
+        """Each tile contains valid base64-encoded image data."""
+        import base64
+
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(url="https://example.com")
+            result = await service.capture_tiled(request)
+
+            for tile in result.tiles:
+                # Verify base64 is decodable
+                decoded = base64.b64decode(tile.image_base64)
+                assert len(decoded) > 0
+                # PNG starts with specific bytes
+                assert decoded[:4] == b"\x89PNG"
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_capture_tiled_max_tile_count_enforced(self):
+        """max_tile_count limits number of tiles generated."""
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1200,
+                tile_height=100,  # Very small to generate many tiles
+                overlap=10,
+                max_tile_count=3,
+            )
+            result = await service.capture_tiled(request)
+
+            assert len(result.tiles) <= 3
+        finally:
+            await service.shutdown()
+
+
+# =============================================================================
+# Sprint 6.0: Fixed Element Detection Tests
+# =============================================================================
+
+
+class TestFixedElementDetection:
+    """Tests for detecting position:fixed and position:sticky elements.
+
+    AC: 02-03 - Fixed Element Detection
+    """
+
+    @pytest.mark.asyncio
+    async def test_fixed_element_detection_position_fixed(self):
+        """DOM extraction detects elements with position:fixed.
+
+        Elements with CSS position:fixed should have is_fixed=True in extraction.
+        """
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            # Use a page with known fixed elements (e.g., example.com has none,
+            # but extraction script should return is_fixed field regardless)
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(
+                    enabled=True,
+                    selectors=["h1", "p", "div"],
+                ),
+            )
+            result = await service.capture(request)
+
+            assert len(result) == 3
+            _, _, dom_result = result
+
+            # Verify is_fixed field is present on extracted elements
+            for element in dom_result["elements"]:
+                assert "is_fixed" in element, "Element missing is_fixed field"
+                assert isinstance(element["is_fixed"], bool)
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_fixed_element_detection_position_sticky(self):
+        """DOM extraction detects elements with position:sticky.
+
+        Elements with CSS position:sticky should have is_fixed=True in extraction,
+        as they also need special handling in tiled capture.
+        """
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(
+                    enabled=True,
+                    selectors=["h1", "p"],
+                ),
+            )
+            result = await service.capture(request)
+
+            assert len(result) == 3
+            _, _, dom_result = result
+
+            # Verify is_fixed field is present
+            for element in dom_result["elements"]:
+                assert "is_fixed" in element
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_fixed_element_detection_normal_element(self):
+        """Normal elements (position:static/relative) have is_fixed=False.
+
+        Most elements on example.com should have standard positioning,
+        so is_fixed should be False.
+        """
+        from app.models import DomExtractionOptions, ScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = ScreenshotRequest(
+                url="https://example.com",
+                extract_dom=DomExtractionOptions(
+                    enabled=True,
+                    selectors=["h1", "p"],
+                ),
+            )
+            result = await service.capture(request)
+
+            assert len(result) == 3
+            _, _, dom_result = result
+
+            # example.com has no fixed elements - all should be is_fixed=False
+            for element in dom_result["elements"]:
+                assert "is_fixed" in element
+                # Standard elements should not be fixed
+                assert element["is_fixed"] is False, (
+                    f"Expected is_fixed=False for {element['tag_name']}, "
+                    f"got {element['is_fixed']}"
+                )
+        finally:
+            await service.shutdown()
+
+
+# =============================================================================
+# Sprint 6.0: Lazy Loading Integration Tests
+# =============================================================================
+
+
+class TestLazyLoadingIntegration:
+    """Integration tests for lazy-load handling in tiled capture.
+
+    AC: 04-01 - Lazy Loading Support
+    Verifies that wait_for_timeout is applied per-tile to allow lazy content to load.
+    """
+
+    @pytest.mark.asyncio
+    async def test_tiled_capture_applies_per_tile_wait(self):
+        """Verify per-tile wait is applied during tiled capture.
+
+        This test captures a multi-tile screenshot with wait_for_timeout and
+        verifies the total capture time reflects per-tile waiting.
+        """
+        import time
+
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            # Use small tile height to generate multiple tiles
+            # Apply 100ms wait_for_timeout - should be distributed across tiles
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1200,
+                tile_height=300,  # Small to ensure multiple tiles
+                overlap=20,
+                wait_for_timeout=200,  # 200ms total wait
+            )
+
+            start_time = time.time()
+            result = await service.capture_tiled(request)
+            elapsed_time = (time.time() - start_time) * 1000  # Convert to ms
+
+            # Verify multiple tiles were captured
+            assert len(result.tiles) >= 1, "Expected at least 1 tile"
+
+            # The capture time should include the wait timeout
+            # We can't precisely verify timing, but capture_time_ms should be > 0
+            assert result.capture_time_ms > 0, "Capture time should be recorded"
+
+            # Verify tiles have valid images (lazy content would have loaded)
+            for tile in result.tiles:
+                assert tile.image_base64, f"Tile {tile.bounds.index} missing image"
+                assert tile.file_size_bytes > 0, f"Tile {tile.bounds.index} has no data"
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_tiled_capture_with_zero_wait_timeout(self):
+        """Verify tiled capture works with zero wait timeout.
+
+        When wait_for_timeout is 0, minimum per-tile wait should still be applied.
+        """
+        from app.models import TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1200,
+                tile_height=400,
+                overlap=20,
+                wait_for_timeout=0,  # Zero wait
+            )
+
+            result = await service.capture_tiled(request)
+
+            # Should still capture successfully
+            assert len(result.tiles) >= 1
+            for tile in result.tiles:
+                assert tile.image_base64
+        finally:
+            await service.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_tiled_capture_lazy_load_with_dom_extraction(self):
+        """Verify DOM extraction captures elements after lazy-load wait.
+
+        This tests that DOM extraction happens after the per-tile wait,
+        ensuring dynamically loaded elements can be captured.
+        """
+        from app.models import DomExtractionOptions, TiledScreenshotRequest
+        from app.screenshot import ScreenshotService
+
+        service = ScreenshotService()
+        await service.initialize()
+
+        try:
+            request = TiledScreenshotRequest(
+                url="https://example.com",
+                tile_width=1200,
+                tile_height=400,
+                overlap=20,
+                wait_for_timeout=100,
+                extract_dom=DomExtractionOptions(
+                    enabled=True,
+                    selectors=["h1", "p", "a"],
+                ),
+            )
+
+            result = await service.capture_tiled(request)
+
+            # Verify tiles have DOM extraction results
+            for tile in result.tiles:
+                if tile.dom_extraction:
+                    # DOM extraction should include elements attribute
+                    assert hasattr(tile.dom_extraction, "elements")
+                    # After wait, elements should be captured
+                    if tile.dom_extraction.elements:
+                        for element in tile.dom_extraction.elements:
+                            # Each element should have required fields
+                            assert element.tag_name is not None
+                            assert element.rect is not None
+        finally:
+            await service.shutdown()

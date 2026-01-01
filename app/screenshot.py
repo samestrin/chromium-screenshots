@@ -10,7 +10,18 @@ from urllib.parse import urlparse
 from playwright.async_api import Browser, async_playwright
 
 from .dom_extraction import get_extraction_script
-from .models import Cookie, ImageFormat, ScreenshotRequest, ScreenshotType
+from .models import (
+    Cookie,
+    CoordinateMapping,
+    ImageFormat,
+    ScreenshotRequest,
+    ScreenshotType,
+    Tile,
+    TileConfig,
+    TiledScreenshotRequest,
+    TiledScreenshotResponse,
+)
+from .tiling import apply_vision_preset, calculate_per_tile_wait, calculate_tile_grid
 
 
 def extract_domain_from_url(url: str) -> Optional[str]:
@@ -334,6 +345,294 @@ class ScreenshotService:
         if dom_result is not None:
             return screenshot_bytes, capture_time, dom_result
         return screenshot_bytes, capture_time
+
+    async def capture_tiled(
+        self, request: TiledScreenshotRequest
+    ) -> TiledScreenshotResponse:
+        """
+        Capture a full-page screenshot as a grid of viewport-sized tiles.
+
+        Optimized for Vision AI processing - each tile is sized to fit within
+        model input limits while maintaining coordinate accuracy.
+
+        Args:
+            request: Tiled screenshot request with URL and tile options
+
+        Returns:
+            TiledScreenshotResponse with tiles, config, and coordinate mapping
+
+        Raises:
+            Exception: If screenshot capture fails
+        """
+        import base64
+
+        start_time = time.perf_counter()
+
+        if not self._browser:
+            await self.initialize()
+
+        # Apply Vision AI preset if specified
+        effective_tile_width = request.tile_width
+        effective_tile_height = request.tile_height
+        effective_overlap = request.overlap
+        applied_preset = None
+
+        if request.target_vision_model:
+            preset_config = apply_vision_preset(
+                request.target_vision_model,
+                tile_width=request.tile_width if request.tile_width != 1568 else None,
+                tile_height=request.tile_height if request.tile_height != 1568 else None,
+                overlap=request.overlap if request.overlap != 50 else None,
+            )
+            effective_tile_width = preset_config["tile_width"]
+            effective_tile_height = preset_config["tile_height"]
+            effective_overlap = preset_config["overlap"]
+            applied_preset = request.target_vision_model.lower()
+
+        # Create context with tile dimensions as viewport
+        context = await self._browser.new_context(
+            viewport={"width": effective_tile_width, "height": effective_tile_height},
+            color_scheme="dark" if request.dark_mode else "light",
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
+        )
+
+        try:
+            # Block ads if requested
+            if request.block_ads:
+                await context.route(
+                    "**/*",
+                    lambda route: (
+                        route.abort()
+                        if any(domain in route.request.url for domain in AD_DOMAINS)
+                        else route.continue_()
+                    ),
+                )
+
+            # Inject cookies if provided
+            if request.cookies:
+                playwright_cookies = prepare_cookies_for_playwright(
+                    request.cookies, str(request.url)
+                )
+                if playwright_cookies:
+                    await context.add_cookies(playwright_cookies)
+
+            page = await context.new_page()
+
+            # Handle storage injection if needed
+            if request.localStorage or request.sessionStorage:
+                origin = extract_origin(str(request.url))
+                await page.goto(origin, wait_until="domcontentloaded", timeout=30000)
+
+                if request.localStorage:
+                    script = build_storage_injection_script(
+                        "localStorage", request.localStorage
+                    )
+                    await page.evaluate(script)
+
+                if request.sessionStorage:
+                    script = build_storage_injection_script(
+                        "sessionStorage", request.sessionStorage
+                    )
+                    await page.evaluate(script)
+
+            # Navigate to target URL
+            await page.goto(
+                str(request.url),
+                wait_until="networkidle",
+                timeout=30000,
+            )
+
+            # Wait for additional timeout if specified
+            if request.wait_for_timeout > 0:
+                await page.wait_for_timeout(request.wait_for_timeout)
+
+            # Wait for specific selector if provided
+            if request.wait_for_selector:
+                await page.wait_for_selector(
+                    request.wait_for_selector,
+                    timeout=10000,
+                )
+
+            # Apply delay before capture if specified
+            if request.delay > 0:
+                await asyncio.sleep(request.delay / 1000)
+
+            # Get full page dimensions
+            page_dimensions = await page.evaluate(
+                """() => ({
+                    width: Math.max(
+                        document.body.scrollWidth,
+                        document.documentElement.scrollWidth
+                    ),
+                    height: Math.max(
+                        document.body.scrollHeight,
+                        document.documentElement.scrollHeight
+                    )
+                })"""
+            )
+
+            page_width = page_dimensions["width"]
+            page_height = page_dimensions["height"]
+
+            # Calculate tile grid
+            tile_bounds_list = calculate_tile_grid(
+                page_height=page_height,
+                viewport_height=effective_tile_height,
+                overlap=effective_overlap,
+                page_width=page_width,
+                viewport_width=effective_tile_width,
+            )
+
+            # Validate max_tile_count limit - return HTTP 400 if exceeded
+            if len(tile_bounds_list) > request.max_tile_count:
+                from fastapi import HTTPException
+
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Page requires {len(tile_bounds_list)} tiles but max_tile_count "
+                        f"is {request.max_tile_count}. Increase max_tile_count (max 1000) "
+                        f"or use larger tile dimensions."
+                    ),
+                )
+
+            # Capture tiles
+            tiles: list[Tile] = []
+            screenshot_options = {
+                "type": request.format.value,
+            }
+            if request.format == ImageFormat.JPEG:
+                screenshot_options["quality"] = request.quality
+
+            # Calculate per-tile wait time for lazy loading support
+            per_tile_wait = calculate_per_tile_wait(
+                request.wait_for_timeout, len(tile_bounds_list)
+            )
+
+            for bounds in tile_bounds_list:
+                # Scroll to tile position
+                await page.evaluate(f"window.scrollTo({bounds.x}, {bounds.y})")
+                await page.wait_for_timeout(per_tile_wait)  # Wait for lazy loading
+
+                # Capture screenshot with clip region
+                screenshot_bytes = await page.screenshot(
+                    **screenshot_options,
+                    clip={
+                        "x": 0,
+                        "y": 0,
+                        "width": bounds.width,
+                        "height": bounds.height,
+                    },
+                )
+
+                # Convert to base64
+                image_base64 = base64.b64encode(screenshot_bytes).decode("utf-8")
+
+                # Extract DOM if enabled
+                dom_extraction = None
+                if request.extract_dom and request.extract_dom.enabled:
+                    extraction_script = get_extraction_script()
+                    options = {
+                        "selectors": request.extract_dom.selectors,
+                        "includeHidden": request.extract_dom.include_hidden,
+                        "minTextLength": request.extract_dom.min_text_length,
+                        "maxElements": request.extract_dom.max_elements,
+                    }
+                    dom_extraction = await page.evaluate(
+                        f"""
+                        {extraction_script}
+                        extractDomElements({json.dumps(options)});
+                        """
+                    )
+
+                    # Enrich DOM elements with tile metadata (US-02)
+                    if dom_extraction and "elements" in dom_extraction:
+                        for element in dom_extraction["elements"]:
+                            # Set tile_index to identify which tile contains this element
+                            element["tile_index"] = bounds.index
+
+                            # Store original tile-relative rect before adjustment
+                            if "rect" in element:
+                                element["tile_relative_rect"] = {
+                                    "x": element["rect"]["x"],
+                                    "y": element["rect"]["y"],
+                                    "width": element["rect"]["width"],
+                                    "height": element["rect"]["height"],
+                                }
+                                # Adjust rect to absolute page coordinates
+                                element["rect"]["x"] += bounds.x
+                                element["rect"]["y"] += bounds.y
+
+                    # Add low element warning if fewer than 5 elements in tile
+                    elem_count = dom_extraction.get("element_count", 0)
+                    if elem_count < 5:
+                        if "warnings" not in dom_extraction:
+                            dom_extraction["warnings"] = []
+                        dom_extraction["warnings"].append({
+                            "code": "low_element_count_per_tile",
+                            "message": (
+                                f"Tile {bounds.index} has only {elem_count} elements "
+                                f"(threshold: 5)"
+                            ),
+                            "severity": "info",
+                            "suggestion": (
+                                "Consider using different selectors or checking "
+                                "if page content loaded correctly"
+                            ),
+                        })
+
+                tile = Tile(
+                    index=bounds.index,
+                    row=bounds.row,
+                    column=bounds.column,
+                    bounds=bounds,
+                    image_base64=image_base64,
+                    file_size_bytes=len(screenshot_bytes),
+                    dom_extraction=dom_extraction,
+                )
+                tiles.append(tile)
+
+            # Calculate grid dimensions
+            max_row = max(t.row for t in tiles) if tiles else 0
+            max_col = max(t.column for t in tiles) if tiles else 0
+
+            # Build tile config
+            tile_config = TileConfig(
+                tile_width=effective_tile_width,
+                tile_height=effective_tile_height,
+                overlap=effective_overlap,
+                total_tiles=len(tiles),
+                grid={"rows": max_row + 1, "columns": max_col + 1},
+                applied_preset=applied_preset,
+            )
+
+            # Build coordinate mapping
+            coordinate_mapping = CoordinateMapping(
+                type="tile_offset",
+                instructions=(
+                    "Add tile bounds.x/y to element coordinates for full-page position"
+                ),
+                full_page_width=page_width,
+                full_page_height=page_height,
+            )
+
+            capture_time = (time.perf_counter() - start_time) * 1000
+
+            return TiledScreenshotResponse(
+                success=True,
+                url=str(request.url),
+                full_page_dimensions={"width": page_width, "height": page_height},
+                tile_config=tile_config,
+                tiles=tiles,
+                capture_time_ms=capture_time,
+                coordinate_mapping=coordinate_mapping,
+            )
+
+        finally:
+            await context.close()
 
     async def health_check(self) -> bool:
         """Check if the browser is healthy and can take screenshots."""
