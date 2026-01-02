@@ -12,6 +12,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         python-version: ["3.11", "3.12"]
@@ -31,8 +32,14 @@ jobs:
         pip install -r requirements.txt
         pip install -r requirements-mcp.txt
         pip install ".[dev]"
-        playwright install chromium
+        pip install pytest-timeout
+
+    - name: Install Playwright with dependencies
+      run: |
+        playwright install --with-deps chromium
 
     - name: Run tests
       run: |
-        pytest tests
+        pytest tests --timeout=60 -v
+      env:
+        PLAYWRIGHT_BROWSERS_PATH: 0
