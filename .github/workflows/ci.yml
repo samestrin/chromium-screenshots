@@ -41,5 +41,3 @@ jobs:
     - name: Run tests
       run: |
         pytest tests --timeout=60 -v
-      env:
-        PLAYWRIGHT_BROWSERS_PATH: 0
