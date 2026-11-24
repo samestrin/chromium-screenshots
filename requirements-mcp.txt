@@ -1,5 +1,6 @@
 # MCP server dependencies
-mcp>=1.0.0
+# The server uses the MCP 1.x API (`Server.list_tools`); MCP 2.x removes it.
+mcp>=1.0.0,<2
 
 # Core dependencies (also in requirements.txt)
 playwright>=1.49.0
