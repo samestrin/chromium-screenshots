@@ -399,3 +399,65 @@ class TestMCPQualityIntegration:
                 # Should include quality in response
                 assert "Quality:" in response_text
                 assert "low" in response_text.lower()
+
+
+class TestMCPSelector:
+    """Tests for selecting one element through the MCP tools."""
+
+    @pytest.mark.asyncio
+    async def test_both_tools_expose_selector(self):
+        from screenshot_mcp.server import list_tools
+
+        tools = {tool.name: tool for tool in await list_tools()}
+
+        for name in ("screenshot", "screenshot_to_file"):
+            selector = tools[name].inputSchema["properties"]["selector"]
+            assert selector["type"] == "string"
+            assert "full_page" in selector["description"]
+
+    @pytest.mark.asyncio
+    async def test_handle_screenshot_passes_selector(self):
+        from unittest.mock import AsyncMock, patch
+
+        with patch("screenshot_mcp.server.get_screenshot_service") as mock_get_service:
+            mock_service = AsyncMock()
+            mock_service.capture.return_value = (b"fake_image", 100.0)
+            mock_get_service.return_value = mock_service
+
+            from screenshot_mcp.server import handle_screenshot
+
+            await handle_screenshot({
+                "url": "https://example.com",
+                "selector": "#main .card",
+            })
+
+            request = mock_service.capture.call_args[0][0]
+            assert request.selector == "#main .card"
+
+    @pytest.mark.asyncio
+    async def test_handle_screenshot_to_file_passes_selector(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import AsyncMock, patch
+
+        with patch("screenshot_mcp.server.get_screenshot_service") as mock_get_service:
+            mock_service = AsyncMock()
+            mock_service.capture.return_value = (b"fake_image", 100.0)
+            mock_get_service.return_value = mock_service
+
+            from screenshot_mcp.server import handle_screenshot_to_file
+
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                output_path = f.name
+
+            try:
+                await handle_screenshot_to_file({
+                    "url": "https://example.com",
+                    "output_path": output_path,
+                    "selector": "#main .card",
+                })
+
+                request = mock_service.capture.call_args[0][0]
+                assert request.selector == "#main .card"
+            finally:
+                Path(output_path).unlink(missing_ok=True)

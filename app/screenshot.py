@@ -326,18 +326,37 @@ class ScreenshotService:
                     """
                 )
 
-            # Prepare screenshot options
-            screenshot_options = {
-                "type": request.format.value,
-                "full_page": request.screenshot_type == ScreenshotType.FULL_PAGE,
-            }
+            # Capture the whole page or one element.
+            if request.selector:
+                locator = page.locator(request.selector)
+                match_count = await locator.count()
+                if match_count == 0:
+                    raise ValueError(
+                        f"selector matched no elements: {request.selector!r}"
+                    )
+                if match_count > 1:
+                    raise ValueError(
+                        f"selector matched {match_count} elements; "
+                        "use a more specific selector"
+                    )
 
-            # Quality only applies to JPEG
-            if request.format == ImageFormat.JPEG:
-                screenshot_options["quality"] = request.quality
+                await locator.wait_for(state="visible", timeout=10000)
+                screenshot_options = {"type": request.format.value}
+                if request.format == ImageFormat.JPEG:
+                    screenshot_options["quality"] = request.quality
+                screenshot_bytes = await locator.screenshot(**screenshot_options)
+            else:
+                # Prepare screenshot options
+                screenshot_options = {
+                    "type": request.format.value,
+                    "full_page": request.screenshot_type == ScreenshotType.FULL_PAGE,
+                }
 
-            # Capture screenshot
-            screenshot_bytes = await page.screenshot(**screenshot_options)
+                # Quality only applies to JPEG
+                if request.format == ImageFormat.JPEG:
+                    screenshot_options["quality"] = request.quality
+
+                screenshot_bytes = await page.screenshot(**screenshot_options)
 
         capture_time = (time.perf_counter() - start_time) * 1000
 

@@ -473,6 +473,13 @@ class ScreenshotRequest(BaseModel):
     wait_for_selector: Optional[str] = Field(
         default=None, description="CSS selector to wait for before capture"
     )
+    selector: Optional[str] = Field(
+        default=None,
+        description=(
+            "CSS selector of the element to capture. Must match exactly one "
+            "element and cannot be combined with full_page."
+        ),
+    )
     delay: int = Field(
         default=0,
         ge=0,
@@ -506,6 +513,17 @@ class ScreenshotRequest(BaseModel):
         description="Options for extracting DOM element positions and text",
     )
 
+    @model_validator(mode="after")
+    def validate_selector(self) -> "ScreenshotRequest":
+        if self.selector is not None:
+            if not self.selector.strip():
+                raise ValueError("selector must not be empty")
+            if self.screenshot_type == ScreenshotType.FULL_PAGE:
+                raise ValueError(
+                    "screenshot_type='full_page' cannot be combined with selector"
+                )
+        return self
+
 
 class ScreenshotResponse(BaseModel):
     """Response model for successful screenshot."""
@@ -516,6 +534,10 @@ class ScreenshotResponse(BaseModel):
     format: ImageFormat
     width: int
     height: int
+    selector: Optional[str] = Field(
+        default=None,
+        description="CSS selector of the captured element, when element capture was used",
+    )
     file_size_bytes: int
     capture_time_ms: float
     image_base64: str = Field(
