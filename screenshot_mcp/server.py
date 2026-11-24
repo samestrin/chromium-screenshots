@@ -102,6 +102,13 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "CSS selector to wait for before capture",
                     },
+                    "selector": {
+                        "type": "string",
+                        "description": (
+                            "CSS selector of one element to capture instead of the "
+                            "viewport. Cannot be combined with full_page."
+                        ),
+                    },
                     "delay": {
                         "type": "integer",
                         "minimum": 0,
@@ -256,6 +263,13 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "CSS selector to wait for",
                     },
+                    "selector": {
+                        "type": "string",
+                        "description": (
+                            "CSS selector of one element to capture instead of the "
+                            "viewport. Cannot be combined with full_page."
+                        ),
+                    },
                     "delay": {
                         "type": "integer",
                         "minimum": 0,
@@ -391,6 +405,7 @@ async def handle_screenshot(arguments: dict) -> list[TextContent]:
             quality=arguments.get("quality", 90),
             wait_for_timeout=arguments.get("wait_for_timeout", 0),
             wait_for_selector=arguments.get("wait_for_selector"),
+            selector=arguments.get("selector"),
             delay=arguments.get("delay", 0),
             dark_mode=arguments.get("dark_mode", False),
             block_ads=arguments.get("block_ads", False),
@@ -417,9 +432,14 @@ async def handle_screenshot(arguments: dict) -> list[TextContent]:
             f"Format: {request.format.value}\n"
             f"Size: {len(screenshot_bytes):,} bytes\n"
             f"Capture time: {capture_time:.2f}ms\n"
-            f"Dimensions: {request.width}x{request.height}\n"
-            f"Type: {request.screenshot_type.value}\n"
         )
+        if request.selector:
+            response_text += f"Element: {request.selector}\n"
+        else:
+            response_text += (
+                f"Dimensions: {request.width}x{request.height}\n"
+                f"Type: {request.screenshot_type.value}\n"
+            )
 
         if dom_result:
             # Assess extraction quality
@@ -498,6 +518,7 @@ async def handle_screenshot_to_file(arguments: dict) -> list[TextContent]:
             quality=arguments.get("quality", 90),
             wait_for_timeout=arguments.get("wait_for_timeout", 0),
             wait_for_selector=arguments.get("wait_for_selector"),
+            selector=arguments.get("selector"),
             delay=arguments.get("delay", 0),
             dark_mode=arguments.get("dark_mode", False),
             block_ads=arguments.get("block_ads", False),
@@ -529,9 +550,14 @@ async def handle_screenshot_to_file(arguments: dict) -> list[TextContent]:
             f"Format: {request.format.value}\n"
             f"Size: {len(screenshot_bytes):,} bytes\n"
             f"Capture time: {capture_time:.2f}ms\n"
-            f"Dimensions: {request.width}x{request.height}\n"
-            f"Type: {request.screenshot_type.value}"
         )
+        if request.selector:
+            response_text += f"Element: {request.selector}"
+        else:
+            response_text += (
+                f"Dimensions: {request.width}x{request.height}\n"
+                f"Type: {request.screenshot_type.value}"
+            )
 
         if dom_result:
             # Assess extraction quality

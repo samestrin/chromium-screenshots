@@ -2425,3 +2425,37 @@ class TestTileBoundsModelInModels:
             TileBounds(
                 index=0, row=0, column=0, x=0, y=0, width=100, height=0
             )
+
+
+class TestScreenshotSelector:
+    """Validation for the optional element selector."""
+
+    def test_selector_defaults_to_none(self):
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(url="https://example.com")
+        assert request.selector is None
+
+    def test_selector_accepts_an_element(self):
+        from app.models import ScreenshotRequest
+
+        request = ScreenshotRequest(
+            url="https://example.com", selector="#main .card"
+        )
+        assert request.selector == "#main .card"
+
+    def test_selector_rejects_full_page(self):
+        from app.models import ScreenshotRequest
+
+        with pytest.raises(ValidationError, match="cannot be combined"):
+            ScreenshotRequest(
+                url="https://example.com",
+                selector="#main",
+                screenshot_type="full_page",
+            )
+
+    def test_selector_rejects_blank_value(self):
+        from app.models import ScreenshotRequest
+
+        with pytest.raises(ValidationError, match="must not be empty"):
+            ScreenshotRequest(url="https://example.com", selector="   ")

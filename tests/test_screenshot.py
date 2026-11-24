@@ -889,3 +889,104 @@ class TestLazyLoadingIntegration:
                             assert element.rect is not None
         finally:
             await service.shutdown()
+
+
+class _FakeLocator:
+    def __init__(self, count: int, image: bytes = b"element-png"):
+        self._count = count
+        self._image = image
+        self.screenshot_kwargs = None
+        self.wait_kwargs = None
+        self.screenshot_called = False
+
+    async def count(self):
+        return self._count
+
+    async def wait_for(self, **kwargs):
+        self.wait_kwargs = kwargs
+
+    async def screenshot(self, **kwargs):
+        self.screenshot_called = True
+        self.screenshot_kwargs = kwargs
+        return self._image
+
+
+class _FakePage:
+    def __init__(self, locator: _FakeLocator):
+        self._locator = locator
+        self.screenshot_called = False
+
+    async def goto(self, *args, **kwargs):
+        return None
+
+    def locator(self, selector: str):
+        assert selector == "#main"
+        return self._locator
+
+    async def screenshot(self, **kwargs):
+        self.screenshot_called = True
+        return b"page-png"
+
+
+class TestSelectorCapture:
+    """Element capture uses the locator, not the full viewport."""
+
+    @staticmethod
+    def _service_with(page, locator):
+        from contextlib import asynccontextmanager
+
+        from app.screenshot import ScreenshotService
+
+        @asynccontextmanager
+        async def fake_get_page(request):
+            yield page
+
+        service = ScreenshotService()
+        service._get_page = fake_get_page
+        return service
+
+    @pytest.mark.asyncio
+    async def test_capture_uses_element_locator(self):
+        from app.models import ScreenshotRequest
+
+        locator = _FakeLocator(count=1)
+        page = _FakePage(locator)
+        service = self._service_with(page, locator)
+
+        result = await service.capture(
+            ScreenshotRequest(url="https://example.com", selector="#main")
+        )
+
+        assert result[0] == b"element-png"
+        assert page.screenshot_called is False
+        assert locator.screenshot_called is True
+        assert locator.wait_kwargs["state"] == "visible"
+        assert locator.screenshot_kwargs == {"type": "png"}
+
+    @pytest.mark.asyncio
+    async def test_capture_rejects_missing_element(self):
+        from app.models import ScreenshotRequest
+
+        locator = _FakeLocator(count=0)
+        page = _FakePage(locator)
+        service = self._service_with(page, locator)
+
+        with pytest.raises(ValueError, match="matched no elements"):
+            await service.capture(
+                ScreenshotRequest(url="https://example.com", selector="#main")
+            )
+        assert page.screenshot_called is False
+
+    @pytest.mark.asyncio
+    async def test_capture_rejects_multiple_elements(self):
+        from app.models import ScreenshotRequest
+
+        locator = _FakeLocator(count=2)
+        page = _FakePage(locator)
+        service = self._service_with(page, locator)
+
+        with pytest.raises(ValueError, match="matched 2 elements"):
+            await service.capture(
+                ScreenshotRequest(url="https://example.com", selector="#main")
+            )
+        assert page.screenshot_called is False

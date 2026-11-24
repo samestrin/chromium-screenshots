@@ -303,6 +303,7 @@ async def take_screenshot_with_metadata(request: ScreenshotRequest):
             format=request.format,
             width=request.width,
             height=request.height,
+            selector=request.selector,
             file_size_bytes=len(screenshot_bytes),
             capture_time_ms=round(capture_time, 2),
             image_base64=base64.b64encode(screenshot_bytes).decode("utf-8"),

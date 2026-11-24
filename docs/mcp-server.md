@@ -51,6 +51,7 @@ Capture a screenshot and return base64-encoded image data.
   "quality": 90,
   "wait_for_timeout": 0,
   "wait_for_selector": ".content",
+  "selector": ".content",
   "delay": 0,
   "dark_mode": false,
   "block_ads": false,
@@ -84,7 +85,8 @@ Capture a screenshot and save it to a file.
   "url": "https://example.com",
   "output_path": "~/screenshots/capture.png",
   "screenshot_type": "viewport",
-  "format": "png"
+  "format": "png",
+  "selector": ".content"
 }
 ```
 
@@ -112,6 +114,7 @@ All parameters from the REST API are supported:
 | `quality` | integer | 90 | JPEG quality (1-100) |
 | `wait_for_timeout` | integer | 0 | Wait after load (0-30000ms) |
 | `wait_for_selector` | string | null | CSS selector to wait for |
+| `selector` | string | null | Capture one matching element; must match exactly once and cannot be combined with `full_page` |
 | `delay` | integer | 0 | Delay before capture (0-10000ms) |
 | `dark_mode` | boolean | false | Dark color scheme |
 | `block_ads` | boolean | false | Block ad domains |
