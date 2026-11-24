@@ -226,10 +226,16 @@ Type: viewport
 
 ### Installation
 
+The MCP server uses the MCP 1.x Python SDK. MCP 2.x removes the `Server.list_tools()`
+API used by this server, so install the bounded MCP requirements:
+
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-mcp.txt
 playwright install chromium
 ```
+
+If you install the package extras instead, use `pip install -e ".[mcp]"`.
+Do not upgrade to MCP 2.x until the server has been migrated to its new API.
 
 ---
 
